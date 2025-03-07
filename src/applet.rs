@@ -33,10 +33,10 @@ impl SysInfo {
                 .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
 
-        self.networks.refresh(true);
-
         self.cpu_usage = self.system.global_cpu_usage();
         self.ram_usage = (self.system.used_memory() * 100) / self.system.total_memory();
+
+        self.networks.refresh(true);
 
         let mut upload = 0;
         let mut download = 0;
@@ -73,7 +73,7 @@ impl cosmic::Application for SysInfo {
                 .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
 
-        let networks = Networks::new();
+        let networks = Networks::new_with_refreshed_list();
 
         (
             Self {
@@ -98,7 +98,7 @@ impl cosmic::Application for SysInfo {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        cosmic::iced::time::every(Duration::from_secs(2)).map(|_| Message::Tick)
+        cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
     }
 
     fn update(&mut self, message: Message) -> cosmic::iced::Task<app::Message<Self::Message>> {
