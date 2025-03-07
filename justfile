@@ -9,7 +9,10 @@ export APPID := 'io.github.rwxroot.' + NAME
 cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
 bin-src := cargo-target-dir / 'release' / NAME
 
-base-dir := '/usr'
+rootdir := ''
+prefix := '/usr'
+
+base-dir := absolute_path(clean(rootdir / prefix))
 share-dst := base-dir / 'share'
 
 bin-dst := base-dir / 'bin' / NAME
