@@ -63,10 +63,7 @@ impl cosmic::Application for SysInfo {
 
     const APP_ID: &'static str = "io.github.rwxroot.cosmic-ext-applet-sysinfo";
 
-    fn init(
-        core: app::Core,
-        _flags: Self::Flags,
-    ) -> (Self, cosmic::iced::Task<app::Message<Self::Message>>) {
+    fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<Self::Message>) {
         let system = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_memory(MemoryRefreshKind::nothing().with_ram())
@@ -101,7 +98,7 @@ impl cosmic::Application for SysInfo {
         cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
     }
 
-    fn update(&mut self, message: Message) -> cosmic::iced::Task<app::Message<Self::Message>> {
+    fn update(&mut self, message: Message) -> app::Task<Self::Message> {
         match message {
             Message::Tick => {
                 self.update();
