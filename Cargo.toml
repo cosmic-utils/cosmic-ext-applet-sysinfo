@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0"
 authors = ["rwxroot <rwxroot@proton.me>"]
-homepage = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo/"
-repository = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo.git"
+homepage = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/"
+repository = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git"
 
 [profile.release]
 lto = "fat"
