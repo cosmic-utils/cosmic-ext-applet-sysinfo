@@ -1,0 +1,31 @@
+[package]
+name = "cosmic-ext-applet-sysinfo"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+authors = ["rwxroot <sachmalik1999@gmail.com>"]
+homepage = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo/"
+repository = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo.git"
+
+[profile.release]
+lto = "fat"
+
+[dependencies]
+sysinfo = { version = "0.33.1", default-features = false, features = [
+	"system",
+	"network",
+] }
+
+tracing = "0.1"
+tracing-log = "0.2.0"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+	"fmt",
+	"env-filter",
+	"ansi",
+] }
+
+libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
+	"applet",
+	"tokio",
+	"wayland",
+] }

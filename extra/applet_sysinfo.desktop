@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Simple System Monitor
+Keywords=Cosmic;Iced;
+Categories=Cosmic;Iced;
+
+Type=Application
+Icon=io.github.rwxroot.cosmic-ext-applet-sysinfo-symbolic
+Exec=cosmic-ext-applet-sysinfo
+Terminal=false
+StartupNotify=true
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
