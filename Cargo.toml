@@ -11,21 +11,17 @@ repository = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo.git"
 lto = "fat"
 
 [dependencies]
-sysinfo = { version = "0.33.1", default-features = false, features = [
-	"system",
-	"network",
-] }
-
-tracing = "0.1"
-tracing-log = "0.2.0"
-tracing-subscriber = { version = "0.3", default-features = false, features = [
-	"fmt",
-	"env-filter",
-	"ansi",
-] }
-
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 	"tokio",
 	"wayland",
+] }
+sysinfo = { version = "0.33.1", default-features = false, features = [
+	"system",
+	"network",
+] }
+tracing = { version = "0.1.41", default-features = false, features = ["log"] }
+tracing-subscriber = { version = "0.3.19", default-features = false, features = [
+	"ansi",
+	"env-filter",
 ] }

@@ -1,6 +1,8 @@
 fn main() -> cosmic::iced::Result {
-    tracing_subscriber::fmt::init();
-    let _ = tracing_log::LogTracer::init();
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
 
     tracing::info!("Starting sysinfo applet");
 
