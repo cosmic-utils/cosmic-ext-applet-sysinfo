@@ -3,7 +3,7 @@ name = "cosmic-ext-applet-sysinfo"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0"
-authors = ["rwxroot <sachmalik1999@gmail.com>"]
+authors = ["rwxroot <rwxroot@proton.me>"]
 homepage = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo/"
 repository = "https://github.com/rwxroot/cosmic-ext-applet-sysinfo.git"
 
