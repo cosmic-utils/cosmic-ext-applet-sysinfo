@@ -1,13 +1,12 @@
 use std::time::Duration;
 
 use cosmic::{
-    app,
+    Element, app,
     iced::{
-        widget::{row, text},
         Alignment, Subscription,
+        widget::{row, text},
     },
     widget::{autosize, button},
-    Element,
 };
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
@@ -61,7 +60,7 @@ impl cosmic::Application for SysInfo {
     type Message = Message;
     type Executor = cosmic::SingleThreadExecutor;
 
-    const APP_ID: &'static str = "io.github.rwxroot.cosmic-ext-applet-sysinfo";
+    const APP_ID: &'static str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
     fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<Self::Message>) {
         let system = System::new_with_specifics(
