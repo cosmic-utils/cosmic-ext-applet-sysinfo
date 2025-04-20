@@ -4,7 +4,7 @@ Keywords=Cosmic;Iced;
 Categories=Cosmic;Iced;
 
 Type=Application
-Icon=io.github.rwxroot.cosmic-ext-applet-sysinfo-symbolic
+Icon=io.github.cosmic-utils.cosmic-ext-applet-sysinfo-symbolic
 Exec=cosmic-ext-applet-sysinfo
 Terminal=false
 StartupNotify=true
