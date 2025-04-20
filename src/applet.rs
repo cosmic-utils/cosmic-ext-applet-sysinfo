@@ -1,13 +1,5 @@
 use std::time::Duration;
 
-use cosmic::{
-    Element, app,
-    iced::{
-        Alignment, Subscription,
-        widget::{row, text},
-    },
-    widget::{autosize, button},
-};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 pub fn run() -> cosmic::iced::Result {
@@ -62,7 +54,10 @@ impl cosmic::Application for SysInfo {
 
     const APP_ID: &'static str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
-    fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<Self::Message>) {
+    fn init(
+        core: cosmic::app::Core,
+        _flags: Self::Flags,
+    ) -> (Self, cosmic::app::Task<Self::Message>) {
         let system = System::new_with_specifics(
             RefreshKind::nothing()
                 .with_memory(MemoryRefreshKind::nothing().with_ram())
@@ -93,11 +88,11 @@ impl cosmic::Application for SysInfo {
         &mut self.core
     }
 
-    fn subscription(&self) -> Subscription<Message> {
+    fn subscription(&self) -> cosmic::iced::Subscription<Message> {
         cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
     }
 
-    fn update(&mut self, message: Message) -> app::Task<Self::Message> {
+    fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
         match message {
             Message::Tick => {
                 self.update();
@@ -107,27 +102,27 @@ impl cosmic::Application for SysInfo {
         cosmic::iced::Task::none()
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> cosmic::Element<Message> {
         let content = {
-            row![
-                text(format!("C: {:.0}%", self.cpu_usage)),
-                text(format!("R: {}%", self.ram_usage)),
-                text(format!(
+            cosmic::iced_widget::row![
+                cosmic::iced_widget::text(format!("C: {:.0}%", self.cpu_usage)),
+                cosmic::iced_widget::text(format!("R: {}%", self.ram_usage)),
+                cosmic::iced_widget::text(format!(
                     "N: ↓{:.2}MB/s ↑{:.2}MB/s",
                     self.download_speed, self.upload_speed
                 )),
             ]
             .spacing(8)
-            .align_y(Alignment::Center)
+            .align_y(cosmic::iced::Alignment::Center)
         };
 
-        let button = button::custom(content)
+        let button = cosmic::widget::button::custom(content)
             .padding([
                 self.core.applet.suggested_padding(false),
                 self.core.applet.suggested_padding(false),
             ])
             .class(cosmic::theme::Button::AppletIcon);
 
-        autosize::autosize(button, cosmic::widget::Id::unique()).into()
+        cosmic::widget::autosize::autosize(button, cosmic::widget::Id::unique()).into()
     }
 }
