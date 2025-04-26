@@ -76,7 +76,7 @@ impl cosmic::Application for SysInfo {
                 download_speed: 0.00,
                 upload_speed: 0.00,
             },
-            cosmic::iced::Task::none(),
+            cosmic::task::none(),
         )
     }
 
@@ -99,7 +99,7 @@ impl cosmic::Application for SysInfo {
             }
         }
 
-        cosmic::iced::Task::none()
+        cosmic::task::none()
     }
 
     fn view(&self) -> cosmic::Element<Message> {
