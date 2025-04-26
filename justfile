@@ -21,8 +21,8 @@ icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
 
 install:
 	install -Dm0755 {{ bin-src }} {{ bin-dst }}
-	install -Dm0644 extra/applet_icon.svg {{ icon-dst }}
-	install -Dm0644 extra/applet_sysinfo.desktop {{ desktop-dst }}
+	install -Dm0644 data/cosmic-ext-applet-sysinfo.svg {{ icon-dst }}
+	install -Dm0644 data/cosmic-ext-applet-sysinfo.desktop {{ desktop-dst }}
 
 uninstall:
 	rm {{ bin-dst }}
