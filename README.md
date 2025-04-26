@@ -1,11 +1,11 @@
 # Simple system info applet for cosmic
 
 <p align="center">
-    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/extra/applet_screenshot_1.png">
+    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_1.png">
 </p>
 
 <p align="center">
-    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/extra/applet_screenshot_2.png">
+    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_2.png">
 </p>
 
 ## Installation
