@@ -17,7 +17,7 @@ struct SysInfo {
 }
 
 impl SysInfo {
-    fn update(&mut self) {
+    fn update_sysinfo_data(&mut self) {
         self.system.refresh_specifics(
             RefreshKind::nothing()
                 .with_memory(MemoryRefreshKind::nothing().with_ram())
@@ -94,9 +94,7 @@ impl cosmic::Application for SysInfo {
 
     fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
         match message {
-            Message::Tick => {
-                self.update();
-            }
+            Message::Tick => self.update_sysinfo_data(),
         }
 
         cosmic::task::none()
