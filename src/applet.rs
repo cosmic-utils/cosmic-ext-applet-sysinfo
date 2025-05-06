@@ -103,23 +103,16 @@ impl cosmic::Application for SysInfo {
     fn view(&self) -> cosmic::Element<Message> {
         let content = {
             cosmic::iced_widget::row![
-                cosmic::iced_widget::text(format!("C: {:.0}%", self.cpu_usage)),
-                cosmic::iced_widget::text(format!("R: {}%", self.ram_usage)),
-                cosmic::iced_widget::text(format!(
-                    "N: ↓{:.2}MB/s ↑{:.2}MB/s",
-                    self.download_speed, self.upload_speed
-                )),
+                cosmic::iced_widget::text(format!("C {:.0}%", self.cpu_usage)),
+                cosmic::iced_widget::text(format!("R {}%", self.ram_usage)),
+                cosmic::iced_widget::text(format!("↓{:.2}MB/s", self.download_speed)),
+                cosmic::iced_widget::text(format!("↑{:.2}MB/s", self.upload_speed)),
             ]
-            .spacing(8)
-            .align_y(cosmic::iced::Alignment::Center)
+            .spacing(5)
         };
 
-        let button = cosmic::widget::button::custom(content)
-            .padding([
-                self.core.applet.suggested_padding(false),
-                self.core.applet.suggested_padding(false),
-            ])
-            .class(cosmic::theme::Button::AppletIcon);
+        let button =
+            cosmic::widget::button::custom(content).class(cosmic::theme::Button::AppletIcon);
 
         cosmic::widget::autosize::autosize(button, cosmic::widget::Id::unique()).into()
     }
