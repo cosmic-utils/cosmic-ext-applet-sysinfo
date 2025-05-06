@@ -10,10 +10,10 @@ struct SysInfo {
     core: cosmic::app::Core,
     system: System,
     networks: Networks,
-    pub cpu_usage: f32,
-    pub ram_usage: u64,
-    pub download_speed: f64,
-    pub upload_speed: f64,
+    cpu_usage: f32,
+    ram_usage: u64,
+    download_speed: f64,
+    upload_speed: f64,
 }
 
 impl SysInfo {
