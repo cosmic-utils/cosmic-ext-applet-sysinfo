@@ -23,3 +23,6 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
 	"ansi",
 	"env-filter",
 ] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+directories = "5"
