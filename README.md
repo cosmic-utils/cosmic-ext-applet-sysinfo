@@ -27,3 +27,43 @@ sudo just install
 ### Arch Linux
 
 On Arch Linux, the applet can be installed using the PKGBUILD [`cosmic-ext-applet-sysinfo-git`](https://aur.archlinux.org/packages/cosmic-ext-applet-sysinfo-git), available on the [AUR](https://wiki.archlinux.org/index.php/Arch_User_Repository).
+
+---
+
+## Network Interface Detection & Configuration
+
+The applet automatically monitors physical network interfaces (Ethernet and Wi-Fi), ignoring virtual interfaces and loopback.
+
+### Advanced Configuration
+
+Create a config file at `$XDG_CONFIG_HOME/cosmic-ext-applet-sysinfo/config.toml` (or `~/.config/cosmic-ext-applet-sysinfo/config.toml`):
+
+```sh
+mkdir -p ~/.config/cosmic-ext-applet-sysinfo
+nano ~/.config/cosmic-ext-applet-sysinfo/config.toml
+```
+
+Example config:
+```toml
+# Only monitor these interfaces:
+include_interfaces = ["enp7s0", "wlp4s0"]
+
+# Or exclude specific interfaces:
+exclude_interfaces = ["lo", "br0", "docker0", "virbr0"]
+```
+
+- `include_interfaces`: Only monitor listed interfaces
+- `exclude_interfaces`: Ignore listed interfaces
+- Both options can be combined; `include_interfaces` is applied first
+- Without config: all physical interfaces are monitored
+- For hotplugged devices (10s rescan interval), prefer `exclude_interfaces` as interface names may be unpredictable
+
+---
+
+## Uninstall
+
+To uninstall files installed by `just install`, run:
+
+```sh
+sudo just uninstall
+```

@@ -1,4 +1,8 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use std::fs;
+use std::path::Path;
+use serde::Deserialize;
+use directories::ProjectDirs;
 
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
@@ -14,10 +18,61 @@ struct SysInfo {
     ram_usage: u64,
     download_speed: f64,
     upload_speed: f64,
+    physical_interfaces: Vec<String>,
+    config: Config,
+    last_scan: Instant,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct Config {
+    include_interfaces: Option<Vec<String>>,
+    exclude_interfaces: Option<Vec<String>>,
 }
 
 impl SysInfo {
+    fn load_config() -> Config {
+        if let Some(proj_dirs) = ProjectDirs::from("io", "github", "cosmic-ext-applet-sysinfo") {
+            let config_path = proj_dirs.config_dir().join("config.toml");
+            if let Ok(contents) = fs::read_to_string(config_path) {
+                if let Ok(cfg) = toml::from_str(&contents) {
+                    return cfg;
+                }
+            }
+        }
+        Config::default()
+    }
+
+    fn get_physical_interfaces(config: &Config) -> Vec<String> {
+        let mut interfaces = Vec::new();
+        if let Ok(entries) = fs::read_dir("/sys/class/net") {
+            for entry in entries.flatten() {
+                let iface = entry.file_name().into_string().unwrap_or_default();
+                if Path::new(&format!("/sys/class/net/{}/device", iface)).exists() {
+                    interfaces.push(iface);
+                }
+            }
+        }
+        // Apply config filters
+        if let Some(ref include) = config.include_interfaces {
+            interfaces.retain(|iface| include.contains(iface));
+        }
+        if let Some(ref exclude) = config.exclude_interfaces {
+            interfaces.retain(|iface| !exclude.contains(iface));
+        }
+        interfaces
+    }
+
+    fn rescan_physical_interfaces(&mut self) {
+        self.physical_interfaces = Self::get_physical_interfaces(&self.config);
+        self.last_scan = Instant::now();
+    }
+
     fn update_sysinfo_data(&mut self) {
+        // Rescan interfaces every 10 seconds
+        if self.last_scan.elapsed() > Duration::from_secs(10) {
+            self.rescan_physical_interfaces();
+        }
+
         self.system.refresh_specifics(
             RefreshKind::nothing()
                 .with_memory(MemoryRefreshKind::nothing().with_ram())
@@ -32,9 +87,11 @@ impl SysInfo {
         let mut upload = 0;
         let mut download = 0;
 
-        for (_, data) in self.networks.iter() {
-            upload += data.transmitted();
-            download += data.received();
+        for (name, data) in self.networks.iter() {
+            if self.physical_interfaces.contains(&name.to_string()) {
+                upload += data.transmitted();
+                download += data.received();
+            }
         }
 
         self.upload_speed = (upload as f64) / 1_000_000.0;
@@ -65,6 +122,9 @@ impl cosmic::Application for SysInfo {
         );
 
         let networks = Networks::new_with_refreshed_list();
+        let config = SysInfo::load_config();
+        let physical_interfaces = SysInfo::get_physical_interfaces(&config);
+        let last_scan = Instant::now();
 
         (
             Self {
@@ -75,6 +135,9 @@ impl cosmic::Application for SysInfo {
                 ram_usage: 0,
                 download_speed: 0.00,
                 upload_speed: 0.00,
+                physical_interfaces,
+                config,
+                last_scan,
             },
             cosmic::task::none(),
         )
