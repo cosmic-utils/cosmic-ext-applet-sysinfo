@@ -2,7 +2,7 @@ use cosmic::cosmic_config::{
     self, Config, CosmicConfigEntry, cosmic_config_derive::CosmicConfigEntry,
 };
 
-pub const CONFIG_VERSION: u64 = 1;
+const CONFIG_VERSION: u64 = 1;
 pub const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
 #[derive(Default, Debug, CosmicConfigEntry)]
@@ -12,7 +12,7 @@ pub struct SysInfoConfig {
 }
 
 impl SysInfoConfig {
-    pub fn config_handler() -> Option<Config> {
+    fn config_handler() -> Option<Config> {
         Config::new(APP_ID, CONFIG_VERSION).ok()
     }
 
