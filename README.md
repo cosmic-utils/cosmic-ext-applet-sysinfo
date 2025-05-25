@@ -16,7 +16,7 @@ The applet can be installed using the following steps:
 
 ```sh
 sudo apt install libxkbcommon-dev just
-git clone https://github.com/rwxroot/cosmic-ext-applet-sysinfo.git
+git clone https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git
 cd cosmic-ext-applet-sysinfo
 just build
 sudo just install
@@ -36,26 +36,36 @@ The applet automatically monitors physical network interfaces (Ethernet and Wi-F
 
 ### Advanced Configuration
 
-Create a config file at `$XDG_CONFIG_HOME/cosmic-ext-applet-sysinfo/config.toml` (or `~/.config/cosmic-ext-applet-sysinfo/config.toml`):
+The applet also provides a configuration that can be used to specify interfaces to include or exclude.
 
 ```sh
-mkdir -p ~/.config/cosmic-ext-applet-sysinfo
-nano ~/.config/cosmic-ext-applet-sysinfo/config.toml
+cd ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo
 ```
 
-Example config:
-```toml
-# Only monitor these interfaces:
-include_interfaces = ["enp7s0", "wlp4s0"]
+Example configuration:
 
-# Or exclude specific interfaces:
-exclude_interfaces = ["lo", "br0", "docker0", "virbr0"]
+Include interface(s) in the include_interfaces file:
+
+```
+Some(["enp7s0", "wlp4s0"])
+```
+
+Or exclude specific interface(s) in exclude_interfaces file:
+
+```
+Some(["lo", "br0", "docker0", "virbr0"])
+```
+
+or
+
+```
+None
 ```
 
 - `include_interfaces`: Only monitor listed interfaces
 - `exclude_interfaces`: Ignore listed interfaces
 - Both options can be combined; `include_interfaces` is applied first
-- Without config: all physical interfaces are monitored
+- Without configuration: all physical interfaces are monitored
 - For hotplugged devices (10s rescan interval), prefer `exclude_interfaces` as interface names may be unpredictable
 
 ---
