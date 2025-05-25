@@ -14,7 +14,7 @@ lto = "fat"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }
-sysinfo = { version = "0.35.0", default-features = false, features = [
+sysinfo = { version = "0.35.1", default-features = false, features = [
 	"system",
 	"network",
 ] }
@@ -23,4 +23,3 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
 	"ansi",
 	"env-filter",
 ] }
-
