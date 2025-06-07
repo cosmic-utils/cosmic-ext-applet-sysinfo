@@ -39,7 +39,7 @@ The applet automatically monitors physical network interfaces (Ethernet and Wi-F
 The applet also provides a configuration that can be used to specify interfaces to include or exclude.
 
 ```sh
-cd ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo
+cd ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo/v1/
 ```
 
 Example configuration:
