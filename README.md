@@ -1,11 +1,11 @@
 # Simple system info applet for cosmic
 
 <p align="center">
-    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_1.png">
+    <img alt="Applet Screenshot" src="https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_1.png">
 </p>
 
 <p align="center">
-    <img alt="Applet Screenshot" src="https://github.com/rwxroot/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_2.png">
+    <img alt="Applet Screenshot" src="https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_2.png">
 </p>
 
 ## Installation
@@ -44,13 +44,13 @@ cd ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo/v1/
 
 Example configuration:
 
-Include interface(s) in the include_interfaces file:
+Include interface(s) in the `include_interfaces` file:
 
 ```
 Some(["enp7s0", "wlp4s0"])
 ```
 
-Or exclude specific interface(s) in exclude_interfaces file:
+Or exclude specific interface(s) in `exclude_interfaces` file:
 
 ```
 Some(["lo", "br0", "docker0", "virbr0"])
