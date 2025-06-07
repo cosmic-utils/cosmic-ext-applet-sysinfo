@@ -3,6 +3,7 @@ use cosmic::cosmic_config::{
 };
 
 const CONFIG_VERSION: u64 = 1;
+
 pub const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
 #[derive(Default, Debug, CosmicConfigEntry)]
@@ -20,7 +21,7 @@ impl SysInfoConfig {
         match Self::config_handler() {
             Some(config_handler) => SysInfoConfig::get_entry(&config_handler)
                 .map_err(|error| {
-                    tracing::info!("error whilst loading config: {:#?}", error);
+                    tracing::info!("Error whilst loading config: {:#?}", error);
                 })
                 .unwrap_or_default(),
             None => SysInfoConfig::default(),
