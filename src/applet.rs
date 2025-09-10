@@ -152,7 +152,7 @@ impl cosmic::Application for SysInfo {
         cosmic::task::none()
     }
 
-    fn view(&self) -> cosmic::Element<Message> {
+    fn view(&self) -> cosmic::Element<'_, Message> {
         let data = {
             cosmic::iced_widget::row![
                 cosmic::iced_widget::text(format!("CPU {:.0}%", self.cpu_usage)),

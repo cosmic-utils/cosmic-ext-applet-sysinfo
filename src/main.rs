@@ -1,3 +1,6 @@
+pub mod applet;
+pub mod config;
+
 fn main() -> cosmic::iced::Result {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -6,5 +9,5 @@ fn main() -> cosmic::iced::Result {
 
     tracing::info!("Starting sysinfo applet");
 
-    cosmic_ext_applet_sysinfo::run()
+    applet::run()
 }
