@@ -157,8 +157,8 @@ impl cosmic::Application for SysInfo {
             cosmic::iced_widget::row![
                 cosmic::iced_widget::text(format!("CPU {:.0}%", self.cpu_usage)),
                 cosmic::iced_widget::text(format!("RAM {}%", self.ram_usage)),
-                cosmic::iced_widget::text(format!("↓{:.2}MB/s", self.download_speed)),
-                cosmic::iced_widget::text(format!("↑{:.2}MB/s", self.upload_speed)),
+                cosmic::iced_widget::text(format!("↓{:.2}M/s", self.download_speed)),
+                cosmic::iced_widget::text(format!("↑{:.2}M/s", self.upload_speed)),
             ]
             .spacing(4)
         };
