@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.cosmic_utils.sysinfo-applet</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <project_group>COSMIC</project_group>
+  <developer_name>rwxroot</developer_name>
+  <update_contact>rwxroot@proton.me</update_contact>
+  <name>Sysinfo</name>
+  <url type="homepage">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
+  <url type="bugtracker">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/issues</url>
+  <url type="contribute">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
+  <content_rating type="oars-1.1" />
+  <branding>
+    <color type="primary" scheme_preference="light">#fffffe</color>
+    <color type="primary" scheme_preference="dark">#2b2b2b</color>
+  </branding>
+  <summary>Simple sysinfo viewing applet for COSMIC</summary>
+  <description>
+    <p>Keep an eye on system usage.</p>
+  </description>
+  <icon type="stock">io.github.cosmic_utils.sysinfo-applet-symbolic.svg</icon>
+  <launchable type="desktop-id">io.github.cosmic_utils.sysinfo-applet.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_1.png</image>
+      <caption>The applet in the top centre of the panel</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_2.png</image>
+      <caption>An individual view of the applet showing system info</caption>
+    </screenshot>
+  </screenshots>
+  <provides>
+    <id>com.system76.CosmicApplet</id>
+    <binaries>
+      <binary>cosmic-ext-applet-sysinfo</binary>
+    </binaries>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <recommends>
+    <internet>always</internet>
+  </recommends>
+</component>
