@@ -10,6 +10,18 @@
 
 ## Installation
 
+### Flatpak
+
+Depending on how you've installed COSMIC Desktop, the Sysinfo applet may show up in your app store by default. In COSMIC Store it should be under the "COSMIC Applets" category.
+
+If the applet does not show up in your app store, you'll need to add `cosmic-flatpak` as a source:
+
+```sh
+flatpak remote-add --if-not-exists --user cosmic https://apt.pop-os.org/cosmic/cosmic.flatpakrepo
+```
+
+Then, proceed to your preferred app store and search for Sysinfo applet.
+
 ### Manual
 
 The applet can be installed using the following steps:
