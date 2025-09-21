@@ -4,7 +4,7 @@ build:
 	cargo build --release
 
 export NAME := 'cosmic-ext-applet-sysinfo'
-export APPID := 'io.github.cosmic-utils.' + NAME
+export APPID := 'io.github.cosmic_utils.sysinfo-applet'
 
 cargo-target-dir := env('CARGO_TARGET_DIR', 'target')
 bin-src := cargo-target-dir / 'release' / NAME
@@ -21,8 +21,8 @@ icon-dst := share-dst / 'icons/hicolor/scalable/apps' / APPID + '-symbolic.svg'
 
 install:
 	install -Dm0755 {{ bin-src }} {{ bin-dst }}
-	install -Dm0644 data/cosmic-ext-applet-sysinfo.svg {{ icon-dst }}
-	install -Dm0644 data/cosmic-ext-applet-sysinfo.desktop {{ desktop-dst }}
+	install -Dm0644 data/io.github.cosmic_utils.sysinfo-applet-symbolic.svg {{ icon-dst }}
+	install -Dm0644 data/io.github.cosmic_utils.sysinfo-applet.desktop {{ desktop-dst }}
 
 uninstall:
 	rm {{ bin-dst }}
