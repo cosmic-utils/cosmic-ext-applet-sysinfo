@@ -6,7 +6,7 @@
   <project_group>COSMIC</project_group>
   <developer_name>rwxroot</developer_name>
   <update_contact>rwxroot@proton.me</update_contact>
-  <name>Sysinfo</name>
+  <name>System Monitor</name>
   <url type="homepage">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
   <url type="bugtracker">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/issues</url>
   <url type="contribute">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
@@ -15,20 +15,20 @@
     <color type="primary" scheme_preference="light">#fffffe</color>
     <color type="primary" scheme_preference="dark">#2b2b2b</color>
   </branding>
-  <summary>Simple sysinfo viewing applet for COSMIC</summary>
+  <summary>Realtime system resource monitoring applet for COSMIC</summary>
   <description>
-    <p>Keep an eye on system usage.</p>
+    <p>Monitor your system's CPU, memory and network usage directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
   </description>
   <icon type="stock">io.github.cosmic_utils.sysinfo-applet-symbolic.svg</icon>
   <launchable type="desktop-id">io.github.cosmic_utils.sysinfo-applet.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_1.png</image>
-      <caption>The applet in the top centre of the panel</caption>
+      <caption>System metrics displayed in the COSMIC panel</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_2.png</image>
-      <caption>An individual view of the applet showing system info</caption>
+      <caption>Detailed system resource information panel</caption>
     </screenshot>
   </screenshots>
   <provides>
@@ -39,6 +39,7 @@
   </provides>
   <categories>
     <category>Utility</category>
+    <category>System</category>
   </categories>
   <recommends>
     <internet>always</internet>
