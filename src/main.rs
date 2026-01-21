@@ -1,5 +1,6 @@
 pub mod applet;
 pub mod config;
+pub(crate) mod i18n;
 
 fn main() -> cosmic::iced::Result {
     // Initialize logging
@@ -8,6 +9,9 @@ fn main() -> cosmic::iced::Result {
         .init();
 
     tracing::info!("Starting sysinfo applet");
+
+    let requested_languages = i18n_embed::DesktopLanguageRequester::requested_languages();
+    i18n::init(&requested_languages);
 
     applet::run()
 }

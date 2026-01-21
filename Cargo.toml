@@ -11,9 +11,16 @@ repository = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git"
 lto = "fat"
 
 [dependencies]
+i18n-embed = { version = "0.16.0", default-features = false, features = [
+  "rust-embed",
+  "fluent-system",
+  "desktop-requester",
+] }
+i18n-embed-fl = { version = "0.10.0", default-features = false }
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }
+rust-embed = { version = "8.11.0", default-features = false }
 sysinfo = { version = "0.37.0", default-features = false, features = [
 	"system",
 	"network",
