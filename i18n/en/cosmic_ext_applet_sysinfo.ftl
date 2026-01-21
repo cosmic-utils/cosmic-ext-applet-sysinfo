@@ -1,1 +1,1 @@
-include-swap-in-ram-toggle = Include swap in RAM
+include-swap-in-ram-toggle = Include swap with RAM

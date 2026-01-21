@@ -6,10 +6,12 @@ const CONFIG_VERSION: u64 = 1;
 
 pub const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
-#[derive(Default, Debug, CosmicConfigEntry)]
+#[derive(Default, Debug, Clone, CosmicConfigEntry)]
 pub struct SysInfoConfig {
     pub include_interfaces: Option<Vec<String>>,
     pub exclude_interfaces: Option<Vec<String>>,
+    /// Whether to include Swap usage in the RAM segment
+    pub(crate) include_swap_in_ram: bool,
 }
 
 impl SysInfoConfig {
@@ -25,6 +27,21 @@ impl SysInfoConfig {
                 })
                 .unwrap_or_default(),
             None => SysInfoConfig::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Flags {
+    pub(crate) config: SysInfoConfig,
+    pub(crate) config_handler: Option<cosmic_config::Config>,
+}
+
+impl Flags {
+    pub(crate) fn new() -> Self {
+        Self {
+            config: SysInfoConfig::config(),
+            config_handler: SysInfoConfig::config_handler(),
         }
     }
 }
