@@ -1,6 +1,6 @@
-pub mod applet;
-pub mod config;
-pub(crate) mod i18n;
+mod applet;
+mod config;
+mod i18n;
 
 fn main() -> cosmic::iced::Result {
     // Initialize logging

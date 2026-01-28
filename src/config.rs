@@ -4,12 +4,12 @@ use cosmic::cosmic_config::{
 
 const CONFIG_VERSION: u64 = 1;
 
-pub const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
+pub(crate) const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
 #[derive(Default, Debug, Clone, CosmicConfigEntry)]
-pub struct SysInfoConfig {
-    pub include_interfaces: Option<Vec<String>>,
-    pub exclude_interfaces: Option<Vec<String>>,
+pub(crate) struct SysInfoConfig {
+    pub(crate) include_interfaces: Option<Vec<String>>,
+    pub(crate) exclude_interfaces: Option<Vec<String>>,
     /// Whether to include Swap usage in the RAM segment
     pub(crate) include_swap_in_ram: bool,
 }
@@ -19,7 +19,7 @@ impl SysInfoConfig {
         Config::new(APP_ID, CONFIG_VERSION).ok()
     }
 
-    pub fn config() -> SysInfoConfig {
+    fn config() -> SysInfoConfig {
         match Self::config_handler() {
             Some(config_handler) => SysInfoConfig::get_entry(&config_handler)
                 .map_err(|error| {

@@ -7,14 +7,14 @@ use i18n_embed::{
 };
 use rust_embed::RustEmbed;
 
-pub fn init(requested_languages: &[LanguageIdentifier]) {
+pub(crate) fn init(requested_languages: &[LanguageIdentifier]) {
     if let Err(why) = localizer().select(requested_languages) {
         tracing::info!("error while loading fluent localizations: {why}");
     }
 }
 
 #[must_use]
-pub fn localizer() -> Box<dyn Localizer> {
+fn localizer() -> Box<dyn Localizer> {
     Box::from(DefaultLocalizer::new(&*LANGUAGE_LOADER, &Localizations))
 }
 
@@ -22,7 +22,7 @@ pub fn localizer() -> Box<dyn Localizer> {
 #[folder = "i18n/"]
 struct Localizations;
 
-pub static LANGUAGE_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(|| {
+pub(crate) static LANGUAGE_LOADER: LazyLock<FluentLanguageLoader> = LazyLock::new(|| {
     let loader: FluentLanguageLoader = fluent_language_loader!();
 
     loader

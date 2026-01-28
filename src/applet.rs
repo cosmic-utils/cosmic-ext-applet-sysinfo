@@ -12,7 +12,7 @@ use crate::{
     fl,
 };
 
-pub fn run() -> cosmic::iced::Result {
+pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
 }
 
@@ -99,7 +99,7 @@ impl SysInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Message {
+enum Message {
     Tick,
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
