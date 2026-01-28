@@ -165,6 +165,10 @@ impl cosmic::Application for SysInfo {
         cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
     }
 
+    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+        Some(cosmic::applet::style())
+    }
+
     fn on_close_requested(&self, id: cosmic::iced::window::Id) -> Option<Message> {
         Some(Message::PopupClosed(id))
     }
@@ -189,7 +193,7 @@ impl cosmic::Application for SysInfo {
                     debug!("do not have a popup, creating");
 
                     let new_id = cosmic::iced::window::Id::unique();
-                    debug_assert_eq!(self.popup.replace(new_id), None);
+                    self.popup.replace(new_id);
 
                     let popup_settings = self.core.applet.get_popup_settings(
                         self.core.main_window_id().unwrap(),
@@ -205,8 +209,8 @@ impl cosmic::Application for SysInfo {
                 }
             }
             Message::PopupClosed(id) => {
-                if let Some(i) = self.popup.take() {
-                    debug_assert_eq!(i, id, "got PopupClosed message for an outdated popup id");
+                if self.popup.as_ref() == Some(&id) {
+                    self.popup = None;
                 }
             }
             Message::ToggleIncludeSwapWithRam(value) => {
