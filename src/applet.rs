@@ -209,9 +209,7 @@ impl cosmic::Application for SysInfo {
                 }
             }
             Message::PopupClosed(id) => {
-                if self.popup.as_ref() == Some(&id) {
-                    self.popup = None;
-                }
+                self.popup.take_if(|stored_id| stored_id == &id);
             }
             Message::ToggleIncludeSwapWithRam(value) => {
                 if let Some(handler) = &self.config_handler
