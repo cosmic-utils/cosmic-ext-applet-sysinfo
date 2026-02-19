@@ -7,6 +7,7 @@
   <developer_name>rwxroot</developer_name>
   <update_contact>rwxroot@proton.me</update_contact>
   <name>System Monitor</name>
+  <name xml:lang="cs">Monitor systému</name>
   <url type="homepage">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
   <url type="bugtracker">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/issues</url>
   <url type="contribute">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
@@ -16,8 +17,10 @@
     <color type="primary" scheme_preference="dark">#2b2b2b</color>
   </branding>
   <summary>Realtime system resource monitoring applet for COSMIC</summary>
+  <summary xml:lang="cs">Applet pro sledování systémových prostředků v reálném čase pro COSMIC</summary>
   <description>
     <p>Monitor your system's CPU, memory and network usage directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
+    <p xml:lang="cs">Sledujte využití CPU, paměti a sítě přímo z panelu COSMIC. Získejte okamžitý přehled o výkonu systému díky přehledným a snadno čitelným ukazatelům.</p>
   </description>
   <icon type="stock">io.github.cosmic_utils.sysinfo-applet-symbolic.svg</icon>
   <launchable type="desktop-id">io.github.cosmic_utils.sysinfo-applet.desktop</launchable>
@@ -25,10 +28,12 @@
     <screenshot type="default">
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_1.png</image>
       <caption>System metrics displayed in the COSMIC panel</caption>
+      <caption xml:lang="cs">Systémové metriky zobrazené v panelu COSMIC</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_2.png</image>
       <caption>Detailed system resource information panel</caption>
+      <caption xml:lang="cs">Panel s podrobnými informacemi o systémových prostředcích</caption>
     </screenshot>
   </screenshots>
   <provides>

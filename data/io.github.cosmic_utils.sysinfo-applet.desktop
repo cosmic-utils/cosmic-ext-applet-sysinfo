@@ -1,6 +1,8 @@
 [Desktop Entry]
 Name=Simple System Monitor
+Name[cs]=Jednoduchý monitor systému
 Keywords=System;Monitor;
+Keywords[cs]=Systém;Sledování;Monitor;
 Categories=System;Monitor;
 
 Type=Application
