@@ -1,5 +1,5 @@
 use std::{
-    cell::OnceCell,
+    cell::LazyCell,
     fs,
     path::Path,
     process::Command,
@@ -146,22 +146,16 @@ impl SysInfo {
         }
 
         if self.template_requires.gpu_temp || self.template_requires.gpu_usage {
-            let nvidia: OnceCell<Option<(Option<f32>, Option<u64>)>> = OnceCell::new();
+            let nvidia = LazyCell::new(Self::query_nvidia_smi);
+
             if self.template_requires.gpu_temp {
-                self.gpu_temp = self.find_gpu_temp().or_else(|| {
-                    nvidia
-                        .get_or_init(Self::query_nvidia_smi)
-                        .as_ref()
-                        .and_then(|(temp, _)| *temp)
-                });
+                self.gpu_temp = self
+                    .find_gpu_temp()
+                    .or_else(|| nvidia.as_ref().and_then(|(temp, _)| *temp));
             }
             if self.template_requires.gpu_usage {
-                self.gpu_usage = Self::find_gpu_usage_sysfs().or_else(|| {
-                    nvidia
-                        .get_or_init(Self::query_nvidia_smi)
-                        .as_ref()
-                        .and_then(|(_, usage)| *usage)
-                });
+                self.gpu_usage = Self::find_gpu_usage_sysfs()
+                    .or_else(|| nvidia.as_ref().and_then(|(_, usage)| *usage));
             }
         }
     }
@@ -431,6 +425,7 @@ impl cosmic::Application for SysInfo {
                     let (text, color) = self.resolve_variable(*var, &colors);
                     span(text).color_maybe(color)
                 }
+                template::Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
             })
             .collect();
 

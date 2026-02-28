@@ -28,6 +28,7 @@ impl Variable {
 pub(crate) enum Segment {
     Literal(String),
     Variable(Variable),
+    Unknown(String),
 }
 
 pub(crate) struct Requires {
@@ -43,7 +44,6 @@ impl Requires {
             gpu_temp: false,
             gpu_usage: false,
         };
-
         for segment in segments {
             if let Segment::Variable(var) = segment {
                 match var {
@@ -54,34 +54,56 @@ impl Requires {
                 }
             }
         }
-
         requires
     }
 }
 
 pub(crate) fn parse(template: &str) -> Vec<Segment> {
     let mut segments = Vec::new();
-    let mut rest = template;
+    let mut literal = String::new();
+    let mut chars = template.chars().peekable();
 
-    while let Some(start) = rest.find('{') {
-        if start > 0 {
-            segments.push(Segment::Literal(rest[..start].to_string()));
-        }
-        if let Some(end) = rest[start..].find('}') {
-            let name = &rest[start + 1..start + end];
-            match Variable::parse(name) {
-                Some(var) => segments.push(Segment::Variable(var)),
-                None => segments.push(Segment::Literal(format!("{{{name}}}"))),
+    while let Some(ch) = chars.next() {
+        match ch {
+            '{' => {
+                if chars.peek() == Some(&'{') {
+                    // escaped literal '{'
+                    chars.next();
+                    literal.push('{');
+                } else {
+                    // start of a variable: collect until '}'
+                    if !literal.is_empty() {
+                        segments.push(Segment::Literal(std::mem::take(&mut literal)));
+                    }
+                    let mut name = String::new();
+                    for inner in chars.by_ref() {
+                        if inner == '}' {
+                            break;
+                        }
+                        name.push(inner);
+                    }
+                    match Variable::parse(&name) {
+                        Some(var) => segments.push(Segment::Variable(var)),
+                        None => segments.push(Segment::Unknown(name)),
+                    }
+                }
             }
-            rest = &rest[start + end + 1..];
-        } else {
-            segments.push(Segment::Literal(rest[start..].to_string()));
-            break;
+            '}' => {
+                if chars.peek() == Some(&'}') {
+                    // escaped literal '}'
+                    chars.next();
+                    literal.push('}');
+                } else {
+                    // stray '}', treat as literal
+                    literal.push('}');
+                }
+            }
+            _ => literal.push(ch),
         }
     }
 
-    if !rest.is_empty() {
-        segments.push(Segment::Literal(rest.to_string()));
+    if !literal.is_empty() {
+        segments.push(Segment::Literal(literal));
     }
 
     segments
