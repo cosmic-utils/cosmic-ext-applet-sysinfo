@@ -219,11 +219,10 @@ impl SysInfo {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let parts: Vec<&str> = stdout.trim().split(", ").collect();
-        if parts.len() == 2 {
-            Some((parts[0].trim().parse().ok(), parts[1].trim().parse().ok()))
+        if let Some((temp, util)) = stdout.trim().split_once(", ") {
+            Some((temp.trim().parse().ok(), util.trim().parse().ok()))
         } else {
-            None
+            Some((None, None))
         }
     }
 
