@@ -1,5 +1,6 @@
-use std::str::FromStr;
+use std::{fmt::Debug, str::FromStr};
 
+#[derive(Debug)]
 pub(crate) struct Template {
     pub(crate) segments: Vec<Segment>,
     pub(crate) requires: Requires,
@@ -67,7 +68,7 @@ impl Template {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Variable {
     CpuUsage,
     RamUsage,
@@ -95,13 +96,14 @@ impl FromStr for Variable {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub(crate) enum Segment {
     Literal(String),
     Variable(Variable),
     Unknown(String),
 }
 
+#[derive(Debug)]
 pub(crate) struct Requires {
     pub(crate) cpu_temp: bool,
     pub(crate) gpu_temp: bool,
@@ -126,5 +128,34 @@ impl Requires {
             }
         }
         requires
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse() {
+        let parse = |template| match Template::from_str(template) {
+            Ok(res) => res,
+        };
+
+        insta::assert_debug_snapshot!(
+            "all metrics with separators",
+            parse(
+                "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}",
+            ),
+        );
+        insta::assert_debug_snapshot!(
+            "grouped by category",
+            parse("CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}",)
+        );
+        insta::assert_debug_snapshot!(
+            "network focused",
+            parse("↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}")
+        );
+        insta::assert_debug_snapshot!("minimal", parse("{cpu_usage} {ram_usage}"));
+        insta::assert_debug_snapshot!("temps only", parse("CPU {cpu_temp} GPU {gpu_temp}"));
     }
 }

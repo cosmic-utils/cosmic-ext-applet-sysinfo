@@ -1,0 +1,22 @@
+---
+source: src/template.rs
+expression: "parse(\"{cpu_usage} {ram_usage}\")"
+---
+Template {
+    segments: [
+        Variable(
+            CpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            RamUsage,
+        ),
+    ],
+    requires: Requires {
+        cpu_temp: false,
+        gpu_temp: false,
+        gpu_usage: false,
+    },
+}
