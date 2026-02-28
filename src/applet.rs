@@ -7,60 +7,13 @@ use std::{
 
 use crate::{
     config::{APP_ID, Flags, SysInfoConfig},
-    fl,
+    fl, template,
 };
 use cosmic::iced::Color;
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
-}
-
-#[derive(Clone)]
-enum TemplateSegment {
-    Literal(String),
-    Variable(String),
-}
-
-fn parse_template(template: &str) -> Vec<TemplateSegment> {
-    let mut segments = Vec::new();
-    let mut rest = template;
-
-    while let Some(start) = rest.find('{') {
-        if start > 0 {
-            segments.push(TemplateSegment::Literal(rest[..start].to_string()));
-        }
-        if let Some(end) = rest[start..].find('}') {
-            segments.push(TemplateSegment::Variable(
-                rest[start + 1..start + end].to_string(),
-            ));
-            rest = &rest[start + end + 1..];
-        } else {
-            segments.push(TemplateSegment::Literal(rest[start..].to_string()));
-            break;
-        }
-    }
-    if !rest.is_empty() {
-        segments.push(TemplateSegment::Literal(rest.to_string()));
-    }
-
-    segments
-}
-
-struct TemplateRequires {
-    cpu_temp: bool,
-    gpu_temp: bool,
-    gpu_usage: bool,
-}
-
-impl TemplateRequires {
-    fn from_template(template: &str) -> Self {
-        Self {
-            cpu_temp: template.contains("{cpu_temp}"),
-            gpu_temp: template.contains("{gpu_temp}"),
-            gpu_usage: template.contains("{gpu_usage}"),
-        }
-    }
 }
 
 struct ThemeColors {
@@ -109,8 +62,8 @@ struct SysInfo {
     has_nvidia_smi: bool,
     last_scan: Instant,
     physical_interfaces: Vec<String>,
-    template_segments: Vec<TemplateSegment>,
-    template_requires: TemplateRequires,
+    template_segments: Vec<template::Segment>,
+    template_requires: template::Requires,
 }
 
 impl SysInfo {
@@ -143,8 +96,8 @@ impl SysInfo {
     }
 
     fn update_template_cache(&mut self) {
-        self.template_segments = parse_template(&self.config.template);
-        self.template_requires = TemplateRequires::from_template(&self.config.template);
+        self.template_segments = template::parse(&self.config.template);
+        self.template_requires = template::Requires::from_segments(&self.template_segments);
     }
 
     fn update_sysinfo_data(&mut self) {
@@ -285,46 +238,49 @@ impl SysInfo {
         }
     }
 
-    fn resolve_variable(&self, name: &str, colors: &ThemeColors) -> (String, Option<Color>) {
-        match name {
-            "cpu_usage" => {
+    fn resolve_variable(
+        &self,
+        var: template::Variable,
+        colors: &ThemeColors,
+    ) -> (String, Option<Color>) {
+        match var {
+            template::Variable::CpuUsage => {
                 let val = self.cpu_usage as f64;
                 (
                     format!("{:.0}%", val),
                     Some(colors.threshold(val, 50.0, 80.0)),
                 )
             }
-            "ram_usage" => {
+            template::Variable::RamUsage => {
                 let val = self.ram_usage as f64;
                 (
                     format!("{}%", self.ram_usage),
                     Some(colors.threshold(val, 50.0, 80.0)),
                 )
             }
-            "cpu_temp" => match self.cpu_temp {
+            template::Variable::CpuTemp => match self.cpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
                     Some(colors.threshold(t as f64, 60.0, 80.0)),
                 ),
                 None => ("--°C".to_string(), None),
             },
-            "gpu_temp" => match self.gpu_temp {
+            template::Variable::GpuTemp => match self.gpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
                     Some(colors.threshold(t as f64, 60.0, 85.0)),
                 ),
                 None => ("--°C".to_string(), None),
             },
-            "gpu_usage" => match self.gpu_usage {
+            template::Variable::GpuUsage => match self.gpu_usage {
                 Some(u) => (
                     format!("{}%", u),
                     Some(colors.threshold(u as f64, 50.0, 80.0)),
                 ),
                 None => ("--%".to_string(), None),
             },
-            "dl_speed" => (format!("{:.2}", self.download_speed), None),
-            "ul_speed" => (format!("{:.2}", self.upload_speed), None),
-            _ => (format!("{{{}}}", name), None),
+            template::Variable::DlSpeed => (format!("{:.2}", self.download_speed), None),
+            template::Variable::UlSpeed => (format!("{:.2}", self.upload_speed), None),
         }
     }
 }
@@ -367,8 +323,8 @@ impl cosmic::Application for SysInfo {
         let last_scan = Instant::now();
         let physical_interfaces = SysInfo::get_physical_interfaces(&config);
         let has_nvidia_smi = Path::new("/usr/bin/nvidia-smi").exists();
-        let template_segments = parse_template(&config.template);
-        let template_requires = TemplateRequires::from_template(&config.template);
+        let template_segments = template::parse(&config.template);
+        let template_requires = template::Requires::from_segments(&template_segments);
 
         (
             Self {
@@ -473,9 +429,9 @@ impl cosmic::Application for SysInfo {
             .template_segments
             .iter()
             .map(|segment| match segment {
-                TemplateSegment::Literal(text) => span(text.clone()),
-                TemplateSegment::Variable(name) => {
-                    let (text, color) = self.resolve_variable(name, &colors);
+                template::Segment::Literal(text) => span(text.clone()),
+                template::Segment::Variable(var) => {
+                    let (text, color) = self.resolve_variable(*var, &colors);
                     span(text).color_maybe(color)
                 }
             })
