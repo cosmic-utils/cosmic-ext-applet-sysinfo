@@ -38,7 +38,7 @@ impl SysInfoConfig {
         match Self::config_handler() {
             Some(config_handler) => SysInfoConfig::get_entry(&config_handler)
                 .map_err(|error| {
-                    eprintln!("error loading config: {error:#?}");
+                    tracing::info!("Error whilst loading config: {:#?}", error);
                 })
                 .unwrap_or_default(),
             None => SysInfoConfig::default(),

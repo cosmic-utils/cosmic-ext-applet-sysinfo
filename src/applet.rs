@@ -404,14 +404,14 @@ impl cosmic::Application for SysInfo {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_include_swap_in_ram(handler, value)
                 {
-                    eprintln!("config error: {error}")
+                    tracing::error!("{error}")
                 }
             }
             Message::TemplateChanged(value) => {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_template(handler, value)
                 {
-                    eprintln!("config error: {error}")
+                    tracing::error!("{error}")
                 }
                 self.update_template_cache();
             }

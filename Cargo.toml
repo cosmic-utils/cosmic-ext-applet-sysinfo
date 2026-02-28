@@ -26,3 +26,8 @@ sysinfo = { version = "0.38.2", default-features = false, features = [
 	"network",
 	"component",
 ] }
+tracing = { version = "0.1.44", default-features = false, features = ["log"] }
+tracing-subscriber = { version = "0.3.22", default-features = false, features = [
+	"ansi",
+	"env-filter",
+] }
