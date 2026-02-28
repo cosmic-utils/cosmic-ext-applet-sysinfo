@@ -4,6 +4,7 @@ mod i18n;
 mod template;
 
 fn main() -> cosmic::iced::Result {
+    // Initialize logging
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();

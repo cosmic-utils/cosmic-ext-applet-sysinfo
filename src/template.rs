@@ -43,6 +43,7 @@ impl Requires {
             gpu_temp: false,
             gpu_usage: false,
         };
+
         for segment in segments {
             if let Segment::Variable(var) = segment {
                 match var {
@@ -53,6 +54,7 @@ impl Requires {
                 }
             }
         }
+
         requires
     }
 }
@@ -77,6 +79,7 @@ pub(crate) fn parse(template: &str) -> Vec<Segment> {
             break;
         }
     }
+
     if !rest.is_empty() {
         segments.push(Segment::Literal(rest.to_string()));
     }

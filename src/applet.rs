@@ -1,4 +1,5 @@
 use std::{
+    cell::OnceCell,
     fs,
     path::Path,
     process::Command,
@@ -11,6 +12,7 @@ use crate::{
 };
 use cosmic::iced::Color;
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
+use tracing::{debug, trace};
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
@@ -25,6 +27,7 @@ impl ThemeColors {
     fn from_active_theme() -> Self {
         let theme = cosmic::theme::active();
         let cosmic = theme.cosmic();
+
         Self {
             yellow: cosmic.warning_color().into(),
             red: cosmic.destructive_color().into(),
@@ -143,15 +146,22 @@ impl SysInfo {
         }
 
         if self.template_requires.gpu_temp || self.template_requires.gpu_usage {
-            let nvidia = OnceCell::new(|| Self::query_nvidia_smi());
+            let nvidia: OnceCell<Option<(Option<f32>, Option<u64>)>> = OnceCell::new();
             if self.template_requires.gpu_temp {
-                self.gpu_temp = self
-                    .find_gpu_temp()
-                    .or(nvidia.as_ref().and_then(|(temp, _)| *temp));
+                self.gpu_temp = self.find_gpu_temp().or_else(|| {
+                    nvidia
+                        .get_or_init(Self::query_nvidia_smi)
+                        .as_ref()
+                        .and_then(|(temp, _)| *temp)
+                });
             }
             if self.template_requires.gpu_usage {
-                self.gpu_usage =
-                    Self::find_gpu_usage_sysfs().or(nvidia.as_ref().and_then(|(_, usage)| *usage));
+                self.gpu_usage = Self::find_gpu_usage_sysfs().or_else(|| {
+                    nvidia
+                        .get_or_init(Self::query_nvidia_smi)
+                        .as_ref()
+                        .and_then(|(_, usage)| *usage)
+                });
             }
         }
     }
@@ -202,6 +212,7 @@ impl SysInfo {
                 return Some(value);
             }
         }
+
         None
     }
 
@@ -353,6 +364,12 @@ impl cosmic::Application for SysInfo {
     }
 
     fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
+        match message {
+            // don't spam the logs with the tick
+            Message::Tick => trace!(?message),
+            _ => debug!(?message),
+        }
+
         match message {
             Message::Tick => self.update_sysinfo_data(),
             Message::ToggleWindow => {
