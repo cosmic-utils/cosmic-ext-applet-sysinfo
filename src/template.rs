@@ -11,50 +11,23 @@ impl FromStr for Template {
 
     fn from_str(template: &str) -> Result<Self, Self::Err> {
         let mut segments = Vec::new();
-        let mut literal = String::new();
-        let mut chars = template.chars().peekable();
+        let mut rest = template;
 
-        while let Some(ch) = chars.next() {
-            match ch {
-                '{' => {
-                    if chars.peek() == Some(&'{') {
-                        // escaped literal '{'
-                        chars.next();
-                        literal.push('{');
-                    } else {
-                        // start of a variable: collect until '}'
-                        if !literal.is_empty() {
-                            segments.push(Segment::Literal(std::mem::take(&mut literal)));
-                        }
-                        let mut name = String::new();
-                        for inner in chars.by_ref() {
-                            if inner == '}' {
-                                break;
-                            }
-                            name.push(inner);
-                        }
-                        match Variable::from_str(&name) {
-                            Ok(var) => segments.push(Segment::Variable(var)),
-                            Err(()) => segments.push(Segment::Unknown(name)),
-                        }
-                    }
-                }
-                '}' => {
-                    if chars.peek() == Some(&'}') {
-                        // escaped literal '}'
-                        chars.next();
-                        literal.push('}');
-                    } else {
-                        // stray '}', treat as literal
-                        literal.push('}');
-                    }
-                }
-                _ => literal.push(ch),
+        while let Some((before_var, var_n_rest)) = rest.split_once('{')
+            && let Some((var, rest_)) = var_n_rest.split_once('}')
+        {
+            if !before_var.is_empty() {
+                segments.push(Segment::Literal(before_var.to_string()));
             }
+            match Variable::from_str(var) {
+                Ok(var) => segments.push(Segment::Variable(var)),
+                Err(()) => segments.push(Segment::Unknown(var.to_string())),
+            }
+            rest = rest_;
         }
 
-        if !literal.is_empty() {
-            segments.push(Segment::Literal(literal));
+        if !rest.is_empty() {
+            segments.push(Segment::Literal(rest.to_string()));
         }
 
         Ok(Self::from_segments(segments))
