@@ -143,7 +143,7 @@ impl SysInfo {
         }
 
         if self.template_requires.gpu_temp || self.template_requires.gpu_usage {
-            let nvidia = Self::query_nvidia_smi();
+            let nvidia = OnceCell::new(|| Self::query_nvidia_smi());
             if self.template_requires.gpu_temp {
                 self.gpu_temp = self
                     .find_gpu_temp()
