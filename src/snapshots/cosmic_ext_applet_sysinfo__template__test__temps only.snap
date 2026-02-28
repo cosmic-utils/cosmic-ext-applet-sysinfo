@@ -1,0 +1,25 @@
+---
+source: src/template.rs
+expression: "parse(\"CPU {cpu_temp} GPU {gpu_temp}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "CPU ",
+        ),
+        Variable(
+            CpuTemp,
+        ),
+        Literal(
+            " GPU ",
+        ),
+        Variable(
+            GpuTemp,
+        ),
+    ],
+    requires: Requires {
+        cpu_temp: true,
+        gpu_temp: true,
+        gpu_usage: false,
+    },
+}

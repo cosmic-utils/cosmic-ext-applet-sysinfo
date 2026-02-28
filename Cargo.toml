@@ -7,6 +7,13 @@ authors = ["rwxroot <rwxroot@proton.me>"]
 homepage = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/"
 repository = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git"
 
+# insta benefits from being compiled with optimizations, even in debug mode
+#
+# see https://insta.rs/docs/quickstart/
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
+
 [profile.release]
 lto = "fat"
 
@@ -31,3 +38,6 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
 	"ansi",
 	"env-filter",
 ] }
+
+[dev-dependencies]
+insta = "1.46.3"
