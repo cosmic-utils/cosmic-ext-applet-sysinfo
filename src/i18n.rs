@@ -9,7 +9,7 @@ use rust_embed::RustEmbed;
 
 pub(crate) fn init(requested_languages: &[LanguageIdentifier]) {
     if let Err(why) = localizer().select(requested_languages) {
-        tracing::info!("error while loading fluent localizations: {why}");
+        eprintln!("error loading fluent localizations: {why}");
     }
 }
 

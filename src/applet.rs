@@ -1,19 +1,94 @@
 use std::{
     fs,
     path::Path,
+    process::Command,
     time::{Duration, Instant},
 };
-
-use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
-use tracing::{debug, trace};
 
 use crate::{
     config::{APP_ID, Flags, SysInfoConfig},
     fl,
 };
+use cosmic::iced::Color;
+use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
+}
+
+#[derive(Clone)]
+enum TemplateSegment {
+    Literal(String),
+    Variable(String),
+}
+
+fn parse_template(template: &str) -> Vec<TemplateSegment> {
+    let mut segments = Vec::new();
+    let mut rest = template;
+
+    while let Some(start) = rest.find('{') {
+        if start > 0 {
+            segments.push(TemplateSegment::Literal(rest[..start].to_string()));
+        }
+        if let Some(end) = rest[start..].find('}') {
+            segments.push(TemplateSegment::Variable(
+                rest[start + 1..start + end].to_string(),
+            ));
+            rest = &rest[start + end + 1..];
+        } else {
+            segments.push(TemplateSegment::Literal(rest[start..].to_string()));
+            break;
+        }
+    }
+    if !rest.is_empty() {
+        segments.push(TemplateSegment::Literal(rest.to_string()));
+    }
+
+    segments
+}
+
+struct TemplateRequires {
+    cpu_temp: bool,
+    gpu_temp: bool,
+    gpu_usage: bool,
+}
+
+impl TemplateRequires {
+    fn from_template(template: &str) -> Self {
+        Self {
+            cpu_temp: template.contains("{cpu_temp}"),
+            gpu_temp: template.contains("{gpu_temp}"),
+            gpu_usage: template.contains("{gpu_usage}"),
+        }
+    }
+}
+
+struct ThemeColors {
+    green: Color,
+    yellow: Color,
+    red: Color,
+}
+
+impl ThemeColors {
+    fn from_active_theme() -> Self {
+        let theme = cosmic::theme::active();
+        let cosmic = theme.cosmic();
+        Self {
+            green: cosmic.success_color().into(),
+            yellow: cosmic.warning_color().into(),
+            red: cosmic.destructive_color().into(),
+        }
+    }
+
+    fn threshold(&self, value: f64, warn: f64, critical: f64) -> Color {
+        if value >= critical {
+            self.red
+        } else if value >= warn {
+            self.yellow
+        } else {
+            self.green
+        }
+    }
 }
 
 struct SysInfo {
@@ -23,12 +98,19 @@ struct SysInfo {
     config_handler: Option<cosmic::cosmic_config::Config>,
     system: System,
     networks: Networks,
+    components: Components,
     cpu_usage: f32,
     ram_usage: u64,
     download_speed: f64,
     upload_speed: f64,
+    cpu_temp: Option<f32>,
+    gpu_temp: Option<f32>,
+    gpu_usage: Option<u64>,
+    has_nvidia_smi: bool,
     last_scan: Instant,
     physical_interfaces: Vec<String>,
+    template_segments: Vec<TemplateSegment>,
+    template_requires: TemplateRequires,
 }
 
 impl SysInfo {
@@ -45,12 +127,11 @@ impl SysInfo {
             }
         }
 
-        // Apply config filters
-        if let Some(included_interfaces) = &config.include_interfaces {
-            interfaces.retain(|interface| included_interfaces.contains(interface));
+        if let Some(included) = &config.include_interfaces {
+            interfaces.retain(|i| included.contains(i));
         }
-        if let Some(excluded_interface) = &config.exclude_interfaces {
-            interfaces.retain(|interface| !excluded_interface.contains(interface));
+        if let Some(excluded) = &config.exclude_interfaces {
+            interfaces.retain(|i| !excluded.contains(i));
         }
 
         interfaces
@@ -61,15 +142,25 @@ impl SysInfo {
         self.last_scan = Instant::now();
     }
 
+    fn update_template_cache(&mut self) {
+        self.template_segments = parse_template(&self.config.template);
+        self.template_requires = TemplateRequires::from_template(&self.config.template);
+    }
+
     fn update_sysinfo_data(&mut self) {
-        // Rescan interfaces every 10 seconds
         if self.last_scan.elapsed() > Duration::from_secs(10) {
             self.rescan_physical_interfaces();
         }
 
+        let memory_refresh = if self.config.include_swap_in_ram {
+            MemoryRefreshKind::nothing().with_ram().with_swap()
+        } else {
+            MemoryRefreshKind::nothing().with_ram()
+        };
+
         self.system.refresh_specifics(
             RefreshKind::nothing()
-                .with_memory(MemoryRefreshKind::nothing().with_ram())
+                .with_memory(memory_refresh)
                 .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
 
@@ -85,16 +176,156 @@ impl SysInfo {
 
         let mut upload = 0;
         let mut download = 0;
-
         for (name, data) in self.networks.iter() {
             if self.physical_interfaces.contains(name) {
                 upload += data.transmitted();
                 download += data.received();
             }
         }
-
         self.upload_speed = (upload as f64) / 1_000_000.0;
         self.download_speed = (download as f64) / 1_000_000.0;
+
+        if self.template_requires.cpu_temp || self.template_requires.gpu_temp {
+            self.components.refresh(true);
+            if self.template_requires.cpu_temp {
+                self.cpu_temp = self.find_cpu_temp();
+            }
+        }
+
+        if self.has_nvidia_smi
+            && (self.template_requires.gpu_temp || self.template_requires.gpu_usage)
+        {
+            let nvidia = Self::query_nvidia_smi();
+            if self.template_requires.gpu_temp {
+                self.gpu_temp = self.find_gpu_temp().or(nvidia.0);
+            }
+            if self.template_requires.gpu_usage {
+                self.gpu_usage = Self::find_gpu_usage_sysfs().or(nvidia.1);
+            }
+        } else {
+            if self.template_requires.gpu_temp {
+                self.gpu_temp = self.find_gpu_temp();
+            }
+            if self.template_requires.gpu_usage {
+                self.gpu_usage = Self::find_gpu_usage_sysfs();
+            }
+        }
+    }
+
+    fn find_cpu_temp(&self) -> Option<f32> {
+        const LABELS: &[&str] = &[
+            "coretemp",
+            "k10temp",
+            "zenpower",
+            "cpu_thermal",
+            "soc_thermal",
+            "cpu",
+            "package",
+            "tctl",
+            "tdie",
+            "core",
+        ];
+
+        self.components
+            .iter()
+            .find(|c| {
+                let label = c.label().to_lowercase();
+                LABELS.iter().any(|l| label.contains(l))
+            })
+            .and_then(|c| c.temperature())
+    }
+
+    fn find_gpu_temp(&self) -> Option<f32> {
+        const LABELS: &[&str] = &[
+            "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "mem",
+        ];
+
+        self.components
+            .iter()
+            .find(|c| {
+                let label = c.label().to_lowercase();
+                LABELS.iter().any(|l| label.contains(l))
+            })
+            .and_then(|c| c.temperature())
+    }
+
+    fn find_gpu_usage_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/drm").ok()?;
+        for entry in entries.flatten() {
+            if let Ok(contents) = fs::read_to_string(entry.path().join("device/gpu_busy_percent"))
+                && let Ok(value) = contents.trim().parse()
+            {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    fn query_nvidia_smi() -> (Option<f32>, Option<u64>) {
+        let Ok(output) = Command::new("nvidia-smi")
+            .args([
+                "--query-gpu=temperature.gpu,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ])
+            .output()
+        else {
+            return (None, None);
+        };
+
+        if !output.status.success() {
+            return (None, None);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let parts: Vec<&str> = stdout.trim().split(", ").collect();
+        if parts.len() == 2 {
+            (parts[0].trim().parse().ok(), parts[1].trim().parse().ok())
+        } else {
+            (None, None)
+        }
+    }
+
+    fn resolve_variable(&self, name: &str, colors: &ThemeColors) -> (String, Option<Color>) {
+        match name {
+            "cpu_usage" => {
+                let val = self.cpu_usage as f64;
+                (
+                    format!("{:.0}%", val),
+                    Some(colors.threshold(val, 50.0, 80.0)),
+                )
+            }
+            "ram_usage" => {
+                let val = self.ram_usage as f64;
+                (
+                    format!("{}%", self.ram_usage),
+                    Some(colors.threshold(val, 50.0, 80.0)),
+                )
+            }
+            "cpu_temp" => match self.cpu_temp {
+                Some(t) => (
+                    format!("{:.0}°C", t),
+                    Some(colors.threshold(t as f64, 60.0, 80.0)),
+                ),
+                None => ("--°C".to_string(), None),
+            },
+            "gpu_temp" => match self.gpu_temp {
+                Some(t) => (
+                    format!("{:.0}°C", t),
+                    Some(colors.threshold(t as f64, 60.0, 85.0)),
+                ),
+                None => ("--°C".to_string(), None),
+            },
+            "gpu_usage" => match self.gpu_usage {
+                Some(u) => (
+                    format!("{}%", u),
+                    Some(colors.threshold(u as f64, 50.0, 80.0)),
+                ),
+                None => ("--%".to_string(), None),
+            },
+            "dl_speed" => (format!("{:.2}", self.download_speed), None),
+            "ul_speed" => (format!("{:.2}", self.upload_speed), None),
+            _ => (format!("{{{}}}", name), None),
+        }
     }
 }
 
@@ -104,6 +335,7 @@ enum Message {
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
+    TemplateChanged(String),
 }
 
 impl cosmic::Application for SysInfo {
@@ -130,9 +362,13 @@ impl cosmic::Application for SysInfo {
                 .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
         let networks = Networks::new_with_refreshed_list();
+        let components = Components::new_with_refreshed_list();
 
         let last_scan = Instant::now();
         let physical_interfaces = SysInfo::get_physical_interfaces(&config);
+        let has_nvidia_smi = Path::new("/usr/bin/nvidia-smi").exists();
+        let template_segments = parse_template(&config.template);
+        let template_requires = TemplateRequires::from_template(&config.template);
 
         (
             Self {
@@ -142,12 +378,19 @@ impl cosmic::Application for SysInfo {
                 config_handler: flags.config_handler,
                 system,
                 networks,
+                components,
                 cpu_usage: 0.0,
                 ram_usage: 0,
-                download_speed: 0.00,
-                upload_speed: 0.00,
+                download_speed: 0.0,
+                upload_speed: 0.0,
+                cpu_temp: None,
+                gpu_temp: None,
+                gpu_usage: None,
+                has_nvidia_smi,
                 last_scan,
                 physical_interfaces,
+                template_segments,
+                template_requires,
             },
             cosmic::task::none(),
         )
@@ -175,38 +418,28 @@ impl cosmic::Application for SysInfo {
 
     fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
         match message {
-            // don't spam the logs with the tick
-            Message::Tick => trace!(?message),
-            _ => debug!(?message),
-        }
-
-        match message {
             Message::Tick => self.update_sysinfo_data(),
             Message::ToggleWindow => {
                 if let Some(id) = self.popup.take() {
-                    debug!("have popup with id={id}, destroying");
-
                     return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(
                         id,
                     );
-                } else {
-                    debug!("do not have a popup, creating");
-
-                    let new_id = cosmic::iced::window::Id::unique();
-                    self.popup.replace(new_id);
-
-                    let popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-
-                    return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
-                        popup_settings,
-                    );
                 }
+
+                let new_id = cosmic::iced::window::Id::unique();
+                self.popup.replace(new_id);
+
+                let popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
+
+                return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
+                    popup_settings,
+                );
             }
             Message::PopupClosed(id) => {
                 self.popup.take_if(|stored_id| stored_id == &id);
@@ -215,8 +448,16 @@ impl cosmic::Application for SysInfo {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_include_swap_in_ram(handler, value)
                 {
-                    tracing::error!("{error}")
+                    eprintln!("config error: {error}")
                 }
+            }
+            Message::TemplateChanged(value) => {
+                if let Some(handler) = &self.config_handler
+                    && let Err(error) = self.config.set_template(handler, value)
+                {
+                    eprintln!("config error: {error}")
+                }
+                self.update_template_cache();
             }
         }
 
@@ -224,17 +465,25 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        let data = {
-            cosmic::iced_widget::row![
-                cosmic::iced_widget::text(format!("CPU {:.0}%", self.cpu_usage)),
-                cosmic::iced_widget::text(format!("RAM {}%", self.ram_usage)),
-                cosmic::iced_widget::text(format!("↓{:.2}M/s", self.download_speed)),
-                cosmic::iced_widget::text(format!("↑{:.2}M/s", self.upload_speed)),
-            ]
-            .spacing(4)
-        };
+        use cosmic::iced_widget::{rich_text, span};
 
-        let button = cosmic::widget::button::custom(data)
+        let colors = ThemeColors::from_active_theme();
+
+        let spans: Vec<_> = self
+            .template_segments
+            .iter()
+            .map(|segment| match segment {
+                TemplateSegment::Literal(text) => span(text.clone()),
+                TemplateSegment::Variable(name) => {
+                    let (text, color) = self.resolve_variable(name, &colors);
+                    span(text).color_maybe(color)
+                }
+            })
+            .collect();
+
+        let content = rich_text(spans);
+
+        let button = cosmic::widget::button::custom(content)
             .class(cosmic::theme::Button::AppletIcon)
             .on_press_down(Message::ToggleWindow);
 
@@ -249,9 +498,16 @@ impl cosmic::Application for SysInfo {
                 .on_toggle(Message::ToggleIncludeSwapWithRam),
         ];
 
+        let template_input = cosmic::iced_widget::column![
+            cosmic::widget::text::body(fl!("template-label")),
+            cosmic::widget::text_input("", &self.config.template)
+                .on_input(Message::TemplateChanged),
+        ]
+        .spacing(4);
+
         let data = cosmic::iced_widget::column![
-            // padding comment to make formatting nicer
-            cosmic::applet::padded_control(include_swap_in_ram_toggler)
+            cosmic::applet::padded_control(include_swap_in_ram_toggler),
+            cosmic::applet::padded_control(template_input),
         ]
         .padding([16, 0]);
 
