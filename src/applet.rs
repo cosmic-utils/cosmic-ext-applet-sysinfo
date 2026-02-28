@@ -17,7 +17,6 @@ pub(crate) fn run() -> cosmic::iced::Result {
 }
 
 struct ThemeColors {
-    green: Color,
     yellow: Color,
     red: Color,
 }
@@ -27,7 +26,6 @@ impl ThemeColors {
         let theme = cosmic::theme::active();
         let cosmic = theme.cosmic();
         Self {
-            green: cosmic.success_color().into(),
             yellow: cosmic.warning_color().into(),
             red: cosmic.destructive_color().into(),
         }
@@ -39,7 +37,7 @@ impl ThemeColors {
         } else if value >= warn {
             self.yellow
         } else {
-            self.green
+            Color::WHITE
         }
     }
 }
