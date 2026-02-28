@@ -31,13 +31,13 @@ impl ThemeColors {
         }
     }
 
-    fn threshold(&self, value: f64, warn: f64, critical: f64) -> Color {
+    fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
         if value >= critical {
-            self.red
+            Some(self.red)
         } else if value >= warn {
-            self.yellow
+            Some(self.yellow)
         } else {
-            Color::WHITE
+            None
         }
     }
 }
@@ -57,7 +57,6 @@ struct SysInfo {
     cpu_temp: Option<f32>,
     gpu_temp: Option<f32>,
     gpu_usage: Option<u64>,
-    has_nvidia_smi: bool,
     last_scan: Instant,
     physical_interfaces: Vec<String>,
     template_segments: Vec<template::Segment>,
@@ -143,22 +142,16 @@ impl SysInfo {
             }
         }
 
-        if self.has_nvidia_smi
-            && (self.template_requires.gpu_temp || self.template_requires.gpu_usage)
-        {
+        if self.template_requires.gpu_temp || self.template_requires.gpu_usage {
             let nvidia = Self::query_nvidia_smi();
             if self.template_requires.gpu_temp {
-                self.gpu_temp = self.find_gpu_temp().or(nvidia.0);
+                self.gpu_temp = self
+                    .find_gpu_temp()
+                    .or(nvidia.as_ref().and_then(|(temp, _)| *temp));
             }
             if self.template_requires.gpu_usage {
-                self.gpu_usage = Self::find_gpu_usage_sysfs().or(nvidia.1);
-            }
-        } else {
-            if self.template_requires.gpu_temp {
-                self.gpu_temp = self.find_gpu_temp();
-            }
-            if self.template_requires.gpu_usage {
-                self.gpu_usage = Self::find_gpu_usage_sysfs();
+                self.gpu_usage =
+                    Self::find_gpu_usage_sysfs().or(nvidia.as_ref().and_then(|(_, usage)| *usage));
             }
         }
     }
@@ -212,27 +205,25 @@ impl SysInfo {
         None
     }
 
-    fn query_nvidia_smi() -> (Option<f32>, Option<u64>) {
-        let Ok(output) = Command::new("nvidia-smi")
+    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {
+        let output = Command::new("nvidia-smi")
             .args([
                 "--query-gpu=temperature.gpu,utilization.gpu",
                 "--format=csv,noheader,nounits",
             ])
             .output()
-        else {
-            return (None, None);
-        };
+            .ok()?;
 
         if !output.status.success() {
-            return (None, None);
+            return None;
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let parts: Vec<&str> = stdout.trim().split(", ").collect();
         if parts.len() == 2 {
-            (parts[0].trim().parse().ok(), parts[1].trim().parse().ok())
+            Some((parts[0].trim().parse().ok(), parts[1].trim().parse().ok()))
         } else {
-            (None, None)
+            None
         }
     }
 
@@ -244,37 +235,31 @@ impl SysInfo {
         match var {
             template::Variable::CpuUsage => {
                 let val = self.cpu_usage as f64;
-                (
-                    format!("{:.0}%", val),
-                    Some(colors.threshold(val, 50.0, 80.0)),
-                )
+                (format!("{:.0}%", val), colors.threshold(val, 50.0, 80.0))
             }
             template::Variable::RamUsage => {
                 let val = self.ram_usage as f64;
                 (
                     format!("{}%", self.ram_usage),
-                    Some(colors.threshold(val, 50.0, 80.0)),
+                    colors.threshold(val, 50.0, 80.0),
                 )
             }
             template::Variable::CpuTemp => match self.cpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
-                    Some(colors.threshold(t as f64, 60.0, 80.0)),
+                    colors.threshold(t as f64, 60.0, 80.0),
                 ),
                 None => ("--°C".to_string(), None),
             },
             template::Variable::GpuTemp => match self.gpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
-                    Some(colors.threshold(t as f64, 60.0, 85.0)),
+                    colors.threshold(t as f64, 60.0, 85.0),
                 ),
                 None => ("--°C".to_string(), None),
             },
             template::Variable::GpuUsage => match self.gpu_usage {
-                Some(u) => (
-                    format!("{}%", u),
-                    Some(colors.threshold(u as f64, 50.0, 80.0)),
-                ),
+                Some(u) => (format!("{}%", u), colors.threshold(u as f64, 50.0, 80.0)),
                 None => ("--%".to_string(), None),
             },
             template::Variable::DlSpeed => (format!("{:.2}", self.download_speed), None),
@@ -320,7 +305,6 @@ impl cosmic::Application for SysInfo {
 
         let last_scan = Instant::now();
         let physical_interfaces = SysInfo::get_physical_interfaces(&config);
-        let has_nvidia_smi = Path::new("/usr/bin/nvidia-smi").exists();
         let template_segments = template::parse(&config.template);
         let template_requires = template::Requires::from_segments(&template_segments);
 
@@ -340,7 +324,6 @@ impl cosmic::Application for SysInfo {
                 cpu_temp: None,
                 gpu_temp: None,
                 gpu_usage: None,
-                has_nvidia_smi,
                 last_scan,
                 physical_interfaces,
                 template_segments,
