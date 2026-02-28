@@ -391,7 +391,7 @@ impl cosmic::Application for SysInfo {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_template(handler, value)
                 {
-                    tracing::error!("{error}")
+                    tracing::error!("failed to set template: {error}")
                 }
                 self.update_template_cache();
             }
