@@ -3,6 +3,7 @@ use std::{
     fs,
     path::Path,
     process::Command,
+    str::FromStr,
     time::{Duration, Instant},
 };
 
@@ -62,8 +63,7 @@ struct SysInfo {
     gpu_usage: Option<u64>,
     last_scan: Instant,
     physical_interfaces: Vec<String>,
-    template_segments: Vec<template::Segment>,
-    template_requires: template::Requires,
+    template: template::Template,
 }
 
 impl SysInfo {
@@ -96,8 +96,8 @@ impl SysInfo {
     }
 
     fn update_template_cache(&mut self) {
-        self.template_segments = template::parse(&self.config.template);
-        self.template_requires = template::Requires::from_segments(&self.template_segments);
+        let Ok(template) = template::Template::from_str(&self.config.template);
+        self.template = template;
     }
 
     fn update_sysinfo_data(&mut self) {
@@ -138,22 +138,22 @@ impl SysInfo {
         self.upload_speed = (upload as f64) / 1_000_000.0;
         self.download_speed = (download as f64) / 1_000_000.0;
 
-        if self.template_requires.cpu_temp || self.template_requires.gpu_temp {
+        if self.template.requires.cpu_temp || self.template.requires.gpu_temp {
             self.components.refresh(true);
-            if self.template_requires.cpu_temp {
+            if self.template.requires.cpu_temp {
                 self.cpu_temp = self.find_cpu_temp();
             }
         }
 
-        if self.template_requires.gpu_temp || self.template_requires.gpu_usage {
+        if self.template.requires.gpu_temp || self.template.requires.gpu_usage {
             let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
-            if self.template_requires.gpu_temp {
+            if self.template.requires.gpu_temp {
                 self.gpu_temp = self
                     .find_gpu_temp()
                     .or_else(|| nvidia.as_ref().and_then(|(temp, _)| *temp));
             }
-            if self.template_requires.gpu_usage {
+            if self.template.requires.gpu_usage {
                 self.gpu_usage = Self::find_gpu_usage_sysfs()
                     .or_else(|| nvidia.as_ref().and_then(|(_, usage)| *usage));
             }
@@ -309,8 +309,7 @@ impl cosmic::Application for SysInfo {
 
         let last_scan = Instant::now();
         let physical_interfaces = SysInfo::get_physical_interfaces(&config);
-        let template_segments = template::parse(&config.template);
-        let template_requires = template::Requires::from_segments(&template_segments);
+        let Ok(template) = template::Template::from_str(&config.template);
 
         (
             Self {
@@ -330,8 +329,7 @@ impl cosmic::Application for SysInfo {
                 gpu_usage: None,
                 last_scan,
                 physical_interfaces,
-                template_segments,
-                template_requires,
+                template,
             },
             cosmic::task::none(),
         )
@@ -417,7 +415,8 @@ impl cosmic::Application for SysInfo {
         let colors = ThemeColors::from_active_theme();
 
         let spans: Vec<_> = self
-            .template_segments
+            .template
+            .segments
             .iter()
             .map(|segment| match segment {
                 template::Segment::Literal(text) => span(text.clone()),

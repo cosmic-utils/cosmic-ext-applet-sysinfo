@@ -1,3 +1,72 @@
+use std::str::FromStr;
+
+pub(crate) struct Template {
+    pub(crate) segments: Vec<Segment>,
+    pub(crate) requires: Requires,
+}
+
+impl FromStr for Template {
+    type Err = std::convert::Infallible;
+
+    fn from_str(template: &str) -> Result<Self, Self::Err> {
+        let mut segments = Vec::new();
+        let mut literal = String::new();
+        let mut chars = template.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                '{' => {
+                    if chars.peek() == Some(&'{') {
+                        // escaped literal '{'
+                        chars.next();
+                        literal.push('{');
+                    } else {
+                        // start of a variable: collect until '}'
+                        if !literal.is_empty() {
+                            segments.push(Segment::Literal(std::mem::take(&mut literal)));
+                        }
+                        let mut name = String::new();
+                        for inner in chars.by_ref() {
+                            if inner == '}' {
+                                break;
+                            }
+                            name.push(inner);
+                        }
+                        match Variable::from_str(&name) {
+                            Ok(var) => segments.push(Segment::Variable(var)),
+                            Err(()) => segments.push(Segment::Unknown(name)),
+                        }
+                    }
+                }
+                '}' => {
+                    if chars.peek() == Some(&'}') {
+                        // escaped literal '}'
+                        chars.next();
+                        literal.push('}');
+                    } else {
+                        // stray '}', treat as literal
+                        literal.push('}');
+                    }
+                }
+                _ => literal.push(ch),
+            }
+        }
+
+        if !literal.is_empty() {
+            segments.push(Segment::Literal(literal));
+        }
+
+        Ok(Self::from_segments(segments))
+    }
+}
+
+impl Template {
+    fn from_segments(segments: Vec<Segment>) -> Self {
+        let requires = Requires::from_segments(&segments);
+        Self { segments, requires }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum Variable {
     CpuUsage,
@@ -9,17 +78,19 @@ pub(crate) enum Variable {
     UlSpeed,
 }
 
-impl Variable {
-    fn parse(s: &str) -> Option<Self> {
+impl FromStr for Variable {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "cpu_usage" => Some(Self::CpuUsage),
-            "ram_usage" => Some(Self::RamUsage),
-            "cpu_temp" => Some(Self::CpuTemp),
-            "gpu_temp" => Some(Self::GpuTemp),
-            "gpu_usage" => Some(Self::GpuUsage),
-            "dl_speed" => Some(Self::DlSpeed),
-            "ul_speed" => Some(Self::UlSpeed),
-            _ => None,
+            "cpu_usage" => Ok(Self::CpuUsage),
+            "ram_usage" => Ok(Self::RamUsage),
+            "cpu_temp" => Ok(Self::CpuTemp),
+            "gpu_temp" => Ok(Self::GpuTemp),
+            "gpu_usage" => Ok(Self::GpuUsage),
+            "dl_speed" => Ok(Self::DlSpeed),
+            "ul_speed" => Ok(Self::UlSpeed),
+            _ => Err(()),
         }
     }
 }
@@ -38,7 +109,7 @@ pub(crate) struct Requires {
 }
 
 impl Requires {
-    pub(crate) fn from_segments(segments: &[Segment]) -> Self {
+    fn from_segments(segments: &[Segment]) -> Self {
         let mut requires = Self {
             cpu_temp: false,
             gpu_temp: false,
@@ -56,55 +127,4 @@ impl Requires {
         }
         requires
     }
-}
-
-pub(crate) fn parse(template: &str) -> Vec<Segment> {
-    let mut segments = Vec::new();
-    let mut literal = String::new();
-    let mut chars = template.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '{' => {
-                if chars.peek() == Some(&'{') {
-                    // escaped literal '{'
-                    chars.next();
-                    literal.push('{');
-                } else {
-                    // start of a variable: collect until '}'
-                    if !literal.is_empty() {
-                        segments.push(Segment::Literal(std::mem::take(&mut literal)));
-                    }
-                    let mut name = String::new();
-                    for inner in chars.by_ref() {
-                        if inner == '}' {
-                            break;
-                        }
-                        name.push(inner);
-                    }
-                    match Variable::parse(&name) {
-                        Some(var) => segments.push(Segment::Variable(var)),
-                        None => segments.push(Segment::Unknown(name)),
-                    }
-                }
-            }
-            '}' => {
-                if chars.peek() == Some(&'}') {
-                    // escaped literal '}'
-                    chars.next();
-                    literal.push('}');
-                } else {
-                    // stray '}', treat as literal
-                    literal.push('}');
-                }
-            }
-            _ => literal.push(ch),
-        }
-    }
-
-    if !literal.is_empty() {
-        segments.push(Segment::Literal(literal));
-    }
-
-    segments
 }
