@@ -12,9 +12,9 @@ pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
 }
 
-struct ThemeColors {
-    yellow: Color,
-    red: Color,
+pub(crate) struct ThemeColors {
+    pub(crate) yellow: Color,
+    pub(crate) red: Color,
 }
 
 impl ThemeColors {
@@ -28,7 +28,7 @@ impl ThemeColors {
         }
     }
 
-    fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
+    pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
         if value >= critical {
             Some(self.red)
         } else if value >= warn {
@@ -53,53 +53,10 @@ impl SysInfo {
         let Ok(template) = template::Template::from_str(&self.config.template);
         self.template = template;
     }
-
-    fn resolve_variable(
-        &self,
-        var: template::Variable,
-        colors: &ThemeColors,
-    ) -> (String, Option<Color>) {
-        match var {
-            template::Variable::CpuUsage => match self.data.cpu_usage {
-                Some(v) => (format!("{:.0}%", v), colors.threshold(v as f64, 50.0, 80.0)),
-                None => ("--%".into(), None),
-            },
-            template::Variable::RamUsage => match self.data.ram_usage {
-                Some(v) => (format!("{}%", v), colors.threshold(v as f64, 50.0, 80.0)),
-                None => ("--%".into(), None),
-            },
-            template::Variable::CpuTemp => match self.data.cpu_temp {
-                Some(t) => (
-                    format!("{:.0}°C", t),
-                    colors.threshold(t as f64, 60.0, 80.0),
-                ),
-                None => ("--°C".into(), None),
-            },
-            template::Variable::GpuTemp => match self.data.gpu_temp {
-                Some(t) => (
-                    format!("{:.0}°C", t),
-                    colors.threshold(t as f64, 60.0, 85.0),
-                ),
-                None => ("--°C".into(), None),
-            },
-            template::Variable::GpuUsage => match self.data.gpu_usage {
-                Some(u) => (format!("{}%", u), colors.threshold(u as f64, 50.0, 80.0)),
-                None => ("--%".into(), None),
-            },
-            template::Variable::DlSpeed => match self.data.download_speed {
-                Some(s) => (format!("{:.2}", s), None),
-                None => ("--".into(), None),
-            },
-            template::Variable::UlSpeed => match self.data.upload_speed {
-                Some(s) => (format!("{:.2}", s), None),
-                None => ("--".into(), None),
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Message {
+pub(crate) enum Message {
     Tick,
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
@@ -209,25 +166,9 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        use cosmic::iced_widget::{rich_text, span};
-
         let colors = ThemeColors::from_active_theme();
 
-        let spans: Vec<_> = self
-            .template
-            .segments
-            .iter()
-            .map(|segment| match segment {
-                template::Segment::Literal(text) => span(text.clone()),
-                template::Segment::Variable(var) => {
-                    let (text, color) = self.resolve_variable(*var, &colors);
-                    span(text).color_maybe(color)
-                }
-                template::Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
-            })
-            .collect();
-
-        let content = rich_text(spans);
+        let content = self.template.render(&self.data, &colors);
 
         let button = cosmic::widget::button::custom(content)
             .class(cosmic::theme::Button::AppletIcon)

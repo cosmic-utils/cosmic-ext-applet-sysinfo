@@ -3,10 +3,11 @@ use std::fmt::Debug;
 use crate::template::Variable::{CpuTemp, CpuUsage, DlSpeed, GpuTemp, GpuUsage, RamUsage, UlSpeed};
 
 mod parse;
+mod render;
 
 #[derive(Debug)]
 pub(crate) struct Template {
-    pub(crate) segments: Vec<Segment>,
+    segments: Vec<Segment>,
     pub(crate) requires: Requires,
 }
 
