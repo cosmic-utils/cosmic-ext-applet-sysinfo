@@ -82,7 +82,7 @@ CPU {cpu_temp} GPU {gpu_temp}
 
 Values are automatically color-coded using COSMIC theme colors:
 
-| Metric | Green | Yellow | Red |
+| Metric | Normal | Yellow | Red |
 |---|---|---|---|
 | CPU usage | < 50% | 50–80% | ≥ 80% |
 | RAM usage | < 50% | 50–80% | ≥ 80% |
