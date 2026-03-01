@@ -56,19 +56,22 @@ impl Data {
     pub(crate) fn refresh(&mut self, requires: Requires, config: &SysInfoConfig) {
         let needs_cpu = requires.contains(Variable::CpuUsage);
         let needs_ram = requires.contains(Variable::RamUsage);
-        let needs_net =
-            requires.contains(Variable::DlSpeed) || requires.contains(Variable::UlSpeed);
+        let needs_download = requires.contains(Variable::DlSpeed);
+        let needs_upload = requires.contains(Variable::UlSpeed);
         let needs_cpu_temp = requires.contains(Variable::CpuTemp);
         let needs_gpu_temp = requires.contains(Variable::GpuTemp);
         let needs_gpu_usage = requires.contains(Variable::GpuUsage);
 
-        if needs_net && self.last_interface_scan.elapsed() > Duration::from_secs(10) {
+        if (needs_download || needs_upload)
+            && self.last_interface_scan.elapsed() > Duration::from_secs(10)
+        {
             self.physical_interfaces = Self::detect_physical_interfaces(config);
             self.last_interface_scan = Instant::now();
         }
 
         // sysinfo system refresh
         let mut refresh = RefreshKind::nothing();
+
         if needs_cpu {
             refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_cpu_usage());
         }
@@ -80,6 +83,7 @@ impl Data {
             };
             refresh = refresh.with_memory(mem);
         }
+
         self.system.refresh_specifics(refresh);
 
         // cpu
@@ -96,7 +100,7 @@ impl Data {
         });
 
         // network
-        if needs_net {
+        if needs_download || needs_upload {
             self.networks.refresh(true);
             let (mut up, mut down) = (0u64, 0u64);
             for (name, iface) in self.networks.iter() {
@@ -105,12 +109,8 @@ impl Data {
                     down += iface.received();
                 }
             }
-            self.download_speed = requires
-                .contains(Variable::DlSpeed)
-                .then(|| down as f64 / 1_000_000.0);
-            self.upload_speed = requires
-                .contains(Variable::UlSpeed)
-                .then(|| up as f64 / 1_000_000.0);
+            self.download_speed = needs_download.then(|| down as f64 / 1_000_000.0);
+            self.upload_speed = needs_upload.then(|| up as f64 / 1_000_000.0);
         } else {
             self.download_speed = None;
             self.upload_speed = None;
@@ -120,6 +120,7 @@ impl Data {
         if needs_cpu_temp || needs_gpu_temp {
             self.components.refresh(true);
         }
+
         self.cpu_temp = if needs_cpu_temp {
             Self::find_cpu_temp(&self.components)
         } else {
