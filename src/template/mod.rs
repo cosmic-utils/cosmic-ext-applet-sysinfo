@@ -23,6 +23,10 @@ pub(crate) enum Variable {
     UlSpeed = 6,
 }
 
+const ALL_VARIABLES: [Variable; 7] = [
+    CpuUsage, RamUsage, CpuTemp, GpuTemp, GpuUsage, DlSpeed, UlSpeed,
+];
+
 impl Variable {
     const fn bit(self) -> u8 {
         1 << (self as u8)
@@ -52,13 +56,9 @@ impl Requires {
 
 impl Debug for Requires {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let all = [
-            CpuUsage, RamUsage, CpuTemp, GpuTemp, GpuUsage, DlSpeed, UlSpeed,
-        ];
-
-        let names: Vec<&str> = all
-            .iter()
-            .filter(|v| self.contains(**v))
+        let names: Vec<&str> = ALL_VARIABLES
+            .into_iter()
+            .filter(|v| self.contains(*v))
             .map(|v| match v {
                 CpuUsage => "cpu_usage",
                 RamUsage => "ram_usage",
