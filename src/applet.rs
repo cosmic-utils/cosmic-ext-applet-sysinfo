@@ -114,6 +114,7 @@ impl cosmic::Application for SysInfo {
 
     fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
         match message {
+            // don't spam the logs with the tick
             Message::Tick => trace!(?message),
             _ => debug!(?message),
         }
