@@ -1,5 +1,7 @@
 use std::{fmt::Debug, str::FromStr};
 
+use crate::template::Variable::{CpuTemp, CpuUsage, DlSpeed, GpuTemp, GpuUsage, RamUsage, UlSpeed};
+
 #[derive(Debug)]
 pub(crate) struct Template {
     pub(crate) segments: Vec<Segment>,
@@ -42,14 +44,21 @@ impl Template {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub(crate) enum Variable {
-    CpuUsage,
-    RamUsage,
-    CpuTemp,
-    GpuTemp,
-    GpuUsage,
-    DlSpeed,
-    UlSpeed,
+    CpuUsage = 0,
+    RamUsage = 1,
+    CpuTemp = 2,
+    GpuTemp = 3,
+    GpuUsage = 4,
+    DlSpeed = 5,
+    UlSpeed = 6,
+}
+
+impl Variable {
+    const fn bit(self) -> u8 {
+        1 << (self as u8)
+    }
 }
 
 impl FromStr for Variable {
@@ -76,31 +85,51 @@ pub(crate) enum Segment {
     Unknown(String),
 }
 
-#[derive(Debug)]
-pub(crate) struct Requires {
-    pub(crate) cpu_temp: bool,
-    pub(crate) gpu_temp: bool,
-    pub(crate) gpu_usage: bool,
-}
+/// Compact bitset tracking which `Variable`s a template references.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Requires(u8);
 
 impl Requires {
+    pub(crate) fn contains(self, var: Variable) -> bool {
+        self.0 & var.bit() != 0
+    }
+
+    fn insert(&mut self, var: Variable) {
+        self.0 |= var.bit();
+    }
+
     fn from_segments(segments: &[Segment]) -> Self {
-        let mut requires = Self {
-            cpu_temp: false,
-            gpu_temp: false,
-            gpu_usage: false,
-        };
-        for segment in segments {
-            if let Segment::Variable(var) = segment {
-                match var {
-                    Variable::CpuTemp => requires.cpu_temp = true,
-                    Variable::GpuTemp => requires.gpu_temp = true,
-                    Variable::GpuUsage => requires.gpu_usage = true,
-                    _ => {}
-                }
+        let mut req = Self::default();
+        for seg in segments {
+            if let Segment::Variable(var) = seg {
+                req.insert(*var);
             }
         }
-        requires
+        req
+    }
+}
+
+impl Debug for Requires {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let all = [
+            CpuUsage, RamUsage, CpuTemp, GpuTemp, GpuUsage, DlSpeed, UlSpeed,
+        ];
+
+        let names: Vec<&str> = all
+            .iter()
+            .filter(|v| self.contains(**v))
+            .map(|v| match v {
+                CpuUsage => "cpu_usage",
+                RamUsage => "ram_usage",
+                CpuTemp => "cpu_temp",
+                GpuTemp => "gpu_temp",
+                GpuUsage => "gpu_usage",
+                DlSpeed => "dl_speed",
+                UlSpeed => "ul_speed",
+            })
+            .collect();
+
+        f.debug_set().entries(names).finish()
     }
 }
 

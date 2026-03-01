@@ -1,19 +1,12 @@
-use std::{
-    cell::LazyCell,
-    fs,
-    path::Path,
-    process::Command,
-    str::FromStr,
-    time::{Duration, Instant},
-};
+use std::{str::FromStr, time::Duration};
+
+use cosmic::iced::Color;
+use tracing::{debug, trace};
 
 use crate::{
     config::{APP_ID, Flags, SysInfoConfig},
-    fl, template,
+    data, fl, template,
 };
-use cosmic::iced::Color;
-use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
-use tracing::{debug, trace};
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
@@ -51,184 +44,14 @@ struct SysInfo {
     popup: Option<cosmic::iced::window::Id>,
     config: SysInfoConfig,
     config_handler: Option<cosmic::cosmic_config::Config>,
-    system: System,
-    networks: Networks,
-    components: Components,
-    cpu_usage: f32,
-    ram_usage: u64,
-    download_speed: f64,
-    upload_speed: f64,
-    cpu_temp: Option<f32>,
-    gpu_temp: Option<f32>,
-    gpu_usage: Option<u64>,
-    last_scan: Instant,
-    physical_interfaces: Vec<String>,
+    data: data::Data,
     template: template::Template,
 }
 
 impl SysInfo {
-    fn get_physical_interfaces(config: &SysInfoConfig) -> Vec<String> {
-        let mut interfaces = Vec::new();
-
-        if let Ok(entries) = fs::read_dir("/sys/class/net") {
-            for entry in entries.flatten() {
-                let interface = entry.file_name().into_string().unwrap_or_default();
-
-                if Path::new(&format!("/sys/class/net/{}/device", interface)).exists() {
-                    interfaces.push(interface);
-                }
-            }
-        }
-
-        if let Some(included) = &config.include_interfaces {
-            interfaces.retain(|i| included.contains(i));
-        }
-        if let Some(excluded) = &config.exclude_interfaces {
-            interfaces.retain(|i| !excluded.contains(i));
-        }
-
-        interfaces
-    }
-
-    fn rescan_physical_interfaces(&mut self) {
-        self.physical_interfaces = Self::get_physical_interfaces(&self.config);
-        self.last_scan = Instant::now();
-    }
-
     fn update_template_cache(&mut self) {
         let Ok(template) = template::Template::from_str(&self.config.template);
         self.template = template;
-    }
-
-    fn update_sysinfo_data(&mut self) {
-        if self.last_scan.elapsed() > Duration::from_secs(10) {
-            self.rescan_physical_interfaces();
-        }
-
-        let memory_refresh = if self.config.include_swap_in_ram {
-            MemoryRefreshKind::nothing().with_ram().with_swap()
-        } else {
-            MemoryRefreshKind::nothing().with_ram()
-        };
-
-        self.system.refresh_specifics(
-            RefreshKind::nothing()
-                .with_memory(memory_refresh)
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-        );
-
-        self.cpu_usage = self.system.global_cpu_usage();
-        self.ram_usage = if self.config.include_swap_in_ram {
-            ((self.system.used_memory() + self.system.used_swap()) * 100)
-                / (self.system.total_memory() + self.system.total_swap())
-        } else {
-            (self.system.used_memory() * 100) / self.system.total_memory()
-        };
-
-        self.networks.refresh(true);
-
-        let mut upload = 0;
-        let mut download = 0;
-        for (name, data) in self.networks.iter() {
-            if self.physical_interfaces.contains(name) {
-                upload += data.transmitted();
-                download += data.received();
-            }
-        }
-        self.upload_speed = (upload as f64) / 1_000_000.0;
-        self.download_speed = (download as f64) / 1_000_000.0;
-
-        if self.template.requires.cpu_temp || self.template.requires.gpu_temp {
-            self.components.refresh(true);
-            if self.template.requires.cpu_temp {
-                self.cpu_temp = self.find_cpu_temp();
-            }
-        }
-
-        if self.template.requires.gpu_temp || self.template.requires.gpu_usage {
-            let nvidia = LazyCell::new(Self::query_nvidia_smi);
-
-            if self.template.requires.gpu_temp {
-                self.gpu_temp = self
-                    .find_gpu_temp()
-                    .or_else(|| nvidia.as_ref().and_then(|(temp, _)| *temp));
-            }
-            if self.template.requires.gpu_usage {
-                self.gpu_usage = Self::find_gpu_usage_sysfs()
-                    .or_else(|| nvidia.as_ref().and_then(|(_, usage)| *usage));
-            }
-        }
-    }
-
-    fn find_cpu_temp(&self) -> Option<f32> {
-        const LABELS: &[&str] = &[
-            "coretemp",
-            "k10temp",
-            "zenpower",
-            "cpu_thermal",
-            "soc_thermal",
-            "cpu",
-            "package",
-            "tctl",
-            "tdie",
-            "core",
-        ];
-
-        self.components
-            .iter()
-            .find(|c| {
-                let label = c.label().to_lowercase();
-                LABELS.iter().any(|l| label.contains(l))
-            })
-            .and_then(|c| c.temperature())
-    }
-
-    fn find_gpu_temp(&self) -> Option<f32> {
-        const LABELS: &[&str] = &[
-            "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "mem",
-        ];
-
-        self.components
-            .iter()
-            .find(|c| {
-                let label = c.label().to_lowercase();
-                LABELS.iter().any(|l| label.contains(l))
-            })
-            .and_then(|c| c.temperature())
-    }
-
-    fn find_gpu_usage_sysfs() -> Option<u64> {
-        let entries = fs::read_dir("/sys/class/drm").ok()?;
-        for entry in entries.flatten() {
-            if let Ok(contents) = fs::read_to_string(entry.path().join("device/gpu_busy_percent"))
-                && let Ok(value) = contents.trim().parse()
-            {
-                return Some(value);
-            }
-        }
-
-        None
-    }
-
-    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {
-        let output = Command::new("nvidia-smi")
-            .args([
-                "--query-gpu=temperature.gpu,utilization.gpu",
-                "--format=csv,noheader,nounits",
-            ])
-            .output()
-            .ok()?;
-
-        if !output.status.success() {
-            return None;
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if let Some((temp, util)) = stdout.trim().split_once(", ") {
-            Some((temp.trim().parse().ok(), util.trim().parse().ok()))
-        } else {
-            Some((None, None))
-        }
     }
 
     fn resolve_variable(
@@ -237,37 +60,40 @@ impl SysInfo {
         colors: &ThemeColors,
     ) -> (String, Option<Color>) {
         match var {
-            template::Variable::CpuUsage => {
-                let val = self.cpu_usage as f64;
-                (format!("{:.0}%", val), colors.threshold(val, 50.0, 80.0))
-            }
-            template::Variable::RamUsage => {
-                let val = self.ram_usage as f64;
-                (
-                    format!("{}%", self.ram_usage),
-                    colors.threshold(val, 50.0, 80.0),
-                )
-            }
-            template::Variable::CpuTemp => match self.cpu_temp {
+            template::Variable::CpuUsage => match self.data.cpu_usage {
+                Some(v) => (format!("{:.0}%", v), colors.threshold(v as f64, 50.0, 80.0)),
+                None => ("--%".into(), None),
+            },
+            template::Variable::RamUsage => match self.data.ram_usage {
+                Some(v) => (format!("{}%", v), colors.threshold(v as f64, 50.0, 80.0)),
+                None => ("--%".into(), None),
+            },
+            template::Variable::CpuTemp => match self.data.cpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
                     colors.threshold(t as f64, 60.0, 80.0),
                 ),
-                None => ("--°C".to_string(), None),
+                None => ("--°C".into(), None),
             },
-            template::Variable::GpuTemp => match self.gpu_temp {
+            template::Variable::GpuTemp => match self.data.gpu_temp {
                 Some(t) => (
                     format!("{:.0}°C", t),
                     colors.threshold(t as f64, 60.0, 85.0),
                 ),
-                None => ("--°C".to_string(), None),
+                None => ("--°C".into(), None),
             },
-            template::Variable::GpuUsage => match self.gpu_usage {
+            template::Variable::GpuUsage => match self.data.gpu_usage {
                 Some(u) => (format!("{}%", u), colors.threshold(u as f64, 50.0, 80.0)),
-                None => ("--%".to_string(), None),
+                None => ("--%".into(), None),
             },
-            template::Variable::DlSpeed => (format!("{:.2}", self.download_speed), None),
-            template::Variable::UlSpeed => (format!("{:.2}", self.upload_speed), None),
+            template::Variable::DlSpeed => match self.data.download_speed {
+                Some(s) => (format!("{:.2}", s), None),
+                None => ("--".into(), None),
+            },
+            template::Variable::UlSpeed => match self.data.upload_speed {
+                Some(s) => (format!("{:.2}", s), None),
+                None => ("--".into(), None),
+            },
         }
     }
 }
@@ -293,22 +119,7 @@ impl cosmic::Application for SysInfo {
         flags: Self::Flags,
     ) -> (Self, cosmic::app::Task<Self::Message>) {
         let config = flags.config;
-
-        let memory_config = if config.include_swap_in_ram {
-            MemoryRefreshKind::nothing().with_ram().with_swap()
-        } else {
-            MemoryRefreshKind::nothing().with_ram()
-        };
-        let system = System::new_with_specifics(
-            RefreshKind::nothing()
-                .with_memory(memory_config)
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-        );
-        let networks = Networks::new_with_refreshed_list();
-        let components = Components::new_with_refreshed_list();
-
-        let last_scan = Instant::now();
-        let physical_interfaces = SysInfo::get_physical_interfaces(&config);
+        let data = data::Data::new(&config);
         let Ok(template) = template::Template::from_str(&config.template);
 
         (
@@ -317,18 +128,7 @@ impl cosmic::Application for SysInfo {
                 popup: None,
                 config,
                 config_handler: flags.config_handler,
-                system,
-                networks,
-                components,
-                cpu_usage: 0.0,
-                ram_usage: 0,
-                download_speed: 0.0,
-                upload_speed: 0.0,
-                cpu_temp: None,
-                gpu_temp: None,
-                gpu_usage: None,
-                last_scan,
-                physical_interfaces,
+                data,
                 template,
             },
             cosmic::task::none(),
@@ -357,13 +157,12 @@ impl cosmic::Application for SysInfo {
 
     fn update(&mut self, message: Message) -> cosmic::app::Task<Self::Message> {
         match message {
-            // don't spam the logs with the tick
             Message::Tick => trace!(?message),
             _ => debug!(?message),
         }
 
         match message {
-            Message::Tick => self.update_sysinfo_data(),
+            Message::Tick => self.data.refresh(self.template.requires, &self.config),
             Message::ToggleWindow => {
                 if let Some(id) = self.popup.take() {
                     return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(

@@ -1,5 +1,6 @@
 mod applet;
 mod config;
+mod data;
 mod i18n;
 mod template;
 
