@@ -1,5 +1,5 @@
 ---
-source: src/template.rs
+source: src/template/mod.rs
 expression: "parse(\"{cpu_usage} {ram_usage}\")"
 ---
 Template {
@@ -14,9 +14,8 @@ Template {
             RamUsage,
         ),
     ],
-    requires: Requires {
-        cpu_temp: false,
-        gpu_temp: false,
-        gpu_usage: false,
+    requires: {
+        "cpu_usage",
+        "ram_usage",
     },
 }

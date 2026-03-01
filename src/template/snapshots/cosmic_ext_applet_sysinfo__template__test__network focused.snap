@@ -1,5 +1,5 @@
 ---
-source: src/template.rs
+source: src/template/mod.rs
 expression: "parse(\"↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}\")"
 ---
 Template {
@@ -23,9 +23,9 @@ Template {
             CpuUsage,
         ),
     ],
-    requires: Requires {
-        cpu_temp: false,
-        gpu_temp: false,
-        gpu_usage: false,
+    requires: {
+        "cpu_usage",
+        "dl_speed",
+        "ul_speed",
     },
 }

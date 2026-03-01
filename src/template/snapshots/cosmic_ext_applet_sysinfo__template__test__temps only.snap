@@ -1,5 +1,5 @@
 ---
-source: src/template.rs
+source: src/template/mod.rs
 expression: "parse(\"CPU {cpu_temp} GPU {gpu_temp}\")"
 ---
 Template {
@@ -17,9 +17,8 @@ Template {
             GpuTemp,
         ),
     ],
-    requires: Requires {
-        cpu_temp: true,
-        gpu_temp: true,
-        gpu_usage: false,
+    requires: {
+        "cpu_temp",
+        "gpu_temp",
     },
 }
