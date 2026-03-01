@@ -7,23 +7,50 @@ impl FromStr for Template {
 
     fn from_str(template: &str) -> Result<Self, Self::Err> {
         let mut segments = Vec::new();
-        let mut rest = template;
-
-        while let Some((before_var, var_n_rest)) = rest.split_once('{')
-            && let Some((var, rest_)) = var_n_rest.split_once('}')
-        {
-            if !before_var.is_empty() {
-                segments.push(Segment::Literal(before_var.into()));
+        let mut literal = String::new();
+        let mut chars = template.chars().peekable();
+        while let Some(ch) = chars.next() {
+            match ch {
+                '{' => {
+                    if chars.peek() == Some(&'{') {
+                        // escaped literal '{'
+                        chars.next();
+                        literal.push('{');
+                    } else {
+                        // start of a variable: collect until '}'
+                        if !literal.is_empty() {
+                            segments.push(Segment::Literal(
+                                std::mem::take(&mut literal).into_boxed_str(),
+                            ));
+                        }
+                        let mut name = String::new();
+                        for inner in chars.by_ref() {
+                            if inner == '}' {
+                                break;
+                            }
+                            name.push(inner);
+                        }
+                        match Variable::from_str(&name) {
+                            Ok(var) => segments.push(Segment::Variable(var)),
+                            Err(()) => segments.push(Segment::Unknown(name.into_boxed_str())),
+                        }
+                    }
+                }
+                '}' => {
+                    if chars.peek() == Some(&'}') {
+                        // escaped literal '}'
+                        chars.next();
+                        literal.push('}');
+                    } else {
+                        // stray '}', treat as literal
+                        literal.push('}');
+                    }
+                }
+                _ => literal.push(ch),
             }
-            match Variable::from_str(var) {
-                Ok(var) => segments.push(Segment::Variable(var)),
-                Err(()) => segments.push(Segment::Unknown(var.into())),
-            }
-            rest = rest_;
         }
-
-        if !rest.is_empty() {
-            segments.push(Segment::Literal(rest.into()));
+        if !literal.is_empty() {
+            segments.push(Segment::Literal(literal.into_boxed_str()));
         }
 
         Ok(Self::from_segments(segments))
@@ -92,5 +119,7 @@ mod test {
         );
         insta::assert_debug_snapshot!("minimal", parse("{cpu_usage} {ram_usage}"));
         insta::assert_debug_snapshot!("temps only", parse("CPU {cpu_temp} GPU {gpu_temp}"));
+        insta::assert_debug_snapshot!("escaped braces", parse("{{cpu_usage}}"));
+        insta::assert_debug_snapshot!("escaped then variable", parse("{{{cpu_usage}"));
     }
 }
