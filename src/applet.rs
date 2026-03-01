@@ -12,6 +12,7 @@ pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
 }
 
+/// The colors used in the UI (mainly for the template right now)
 pub(crate) struct ThemeColors {
     pub(crate) yellow: Color,
     pub(crate) red: Color,

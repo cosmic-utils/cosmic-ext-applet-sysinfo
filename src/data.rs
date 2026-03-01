@@ -13,6 +13,9 @@ use crate::{
     template::{Requires, Variable},
 };
 
+/// The data coming from various sources (mostly the `sysinfo` crate)
+///
+/// Manages each source, and stores the values extracted from them
 pub(crate) struct Data {
     system: System,
     networks: Networks,
