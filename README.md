@@ -16,7 +16,7 @@
 - **CPU temperature** — reads from common thermal sensors via sysinfo
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** — reads from sysfs (`gpu_busy_percent`), falls back to `nvidia-smi` for NVIDIA
-- **Color-coded values** — metrics change color (green → yellow → red) based on severity using COSMIC theme colors
+- **Color-coded values** — metrics change color (normal → yellow → red) based on severity using COSMIC theme colors
 
 ## Display Template
 
