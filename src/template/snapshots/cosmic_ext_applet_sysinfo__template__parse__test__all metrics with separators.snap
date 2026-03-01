@@ -1,5 +1,5 @@
 ---
-source: src/template/mod.rs
+source: src/template/parse.rs
 expression: "parse(\"{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}\",)"
 ---
 Template {

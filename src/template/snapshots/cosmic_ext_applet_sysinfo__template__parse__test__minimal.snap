@@ -1,5 +1,5 @@
 ---
-source: src/template/mod.rs
+source: src/template/parse.rs
 expression: "parse(\"{cpu_usage} {ram_usage}\")"
 ---
 Template {

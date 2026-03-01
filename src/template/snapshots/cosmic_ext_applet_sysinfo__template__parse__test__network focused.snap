@@ -1,5 +1,5 @@
 ---
-source: src/template/mod.rs
+source: src/template/parse.rs
 expression: "parse(\"↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}\")"
 ---
 Template {
