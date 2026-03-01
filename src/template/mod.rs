@@ -31,9 +31,9 @@ impl Variable {
 
 #[derive(Debug)]
 pub(crate) enum Segment {
-    Literal(String),
+    Literal(Box<str>),
     Variable(Variable),
-    Unknown(String),
+    Unknown(Box<str>),
 }
 
 /// Compact bitset tracking which `Variable`s a template references.

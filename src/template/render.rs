@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use cosmic::{
     iced::Color,
     iced_widget::{rich_text, span, text},
@@ -16,7 +18,7 @@ impl Template {
             .segments
             .iter()
             .map(|segment| match segment {
-                Segment::Literal(text) => span(text.clone()),
+                Segment::Literal(text) => span(&**text),
                 Segment::Variable(var) => {
                     let (text, color) = self.resolve_variable(*var, data, colors);
                     span(text).color_maybe(color)
@@ -33,40 +35,49 @@ impl Template {
         var: Variable,
         data: &Data,
         colors: &applet::ThemeColors,
-    ) -> (String, Option<Color>) {
+    ) -> (Cow<'static, str>, Option<Color>) {
         match var {
             Variable::CpuUsage => match data.cpu_usage {
-                Some(v) => (format!("{:.0}%", v), colors.threshold(v as f64, 50.0, 80.0)),
+                Some(v) => (
+                    format!("{v:.0}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
+                ),
                 None => ("--%".into(), None),
             },
             Variable::RamUsage => match data.ram_usage {
-                Some(v) => (format!("{}%", v), colors.threshold(v as f64, 50.0, 80.0)),
+                Some(v) => (
+                    format!("{v}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
+                ),
                 None => ("--%".into(), None),
             },
             Variable::CpuTemp => match data.cpu_temp {
                 Some(t) => (
-                    format!("{:.0}°C", t),
+                    format!("{t:.0}°C").into(),
                     colors.threshold(t as f64, 60.0, 80.0),
                 ),
                 None => ("--°C".into(), None),
             },
             Variable::GpuTemp => match data.gpu_temp {
                 Some(t) => (
-                    format!("{:.0}°C", t),
+                    format!("{t:.0}°C").into(),
                     colors.threshold(t as f64, 60.0, 85.0),
                 ),
                 None => ("--°C".into(), None),
             },
             Variable::GpuUsage => match data.gpu_usage {
-                Some(u) => (format!("{}%", u), colors.threshold(u as f64, 50.0, 80.0)),
+                Some(u) => (
+                    format!("{u}%").into(),
+                    colors.threshold(u as f64, 50.0, 80.0),
+                ),
                 None => ("--%".into(), None),
             },
             Variable::DlSpeed => match data.download_speed {
-                Some(s) => (format!("{:.2}", s), None),
+                Some(s) => (format!("{s:.2}").into(), None),
                 None => ("--".into(), None),
             },
             Variable::UlSpeed => match data.upload_speed {
-                Some(s) => (format!("{:.2}", s), None),
+                Some(s) => (format!("{s:.2}").into(), None),
                 None => ("--".into(), None),
             },
         }

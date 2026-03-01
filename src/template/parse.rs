@@ -13,17 +13,17 @@ impl FromStr for Template {
             && let Some((var, rest_)) = var_n_rest.split_once('}')
         {
             if !before_var.is_empty() {
-                segments.push(Segment::Literal(before_var.to_string()));
+                segments.push(Segment::Literal(before_var.into()));
             }
             match Variable::from_str(var) {
                 Ok(var) => segments.push(Segment::Variable(var)),
-                Err(()) => segments.push(Segment::Unknown(var.to_string())),
+                Err(()) => segments.push(Segment::Unknown(var.into())),
             }
             rest = rest_;
         }
 
         if !rest.is_empty() {
-            segments.push(Segment::Literal(rest.to_string()));
+            segments.push(Segment::Literal(rest.into()));
         }
 
         Ok(Self::from_segments(segments))
