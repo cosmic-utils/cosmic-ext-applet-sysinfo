@@ -16,13 +16,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install dependencies
+    - name: Install required system libraries
       run: sudo apt install libxkbcommon-dev
-    - name: Test
-      run: cargo test
+    # selecting a toolchain either by action or manual `rustup` calls should happen
+    # before the plugin, as the cache uses the current rustc version as its cache key
+    - name: Install Rust
+      run: rustup toolchain install stable
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+    - name: Check
+      run: cargo check
     - name: Check formatting
       run: cargo fmt --check
-    - name: Build
-      run: cargo build --verbose
     - name: Check lint
       run: cargo clippy --verbose -- -D warnings
+    - name: Test
+      run: cargo test
