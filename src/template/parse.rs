@@ -9,6 +9,7 @@ impl FromStr for Template {
         let mut segments = Vec::new();
         let mut literal = String::new();
         let mut chars = template.chars().peekable();
+
         while let Some(ch) = chars.next() {
             match ch {
                 '{' => {
@@ -49,6 +50,7 @@ impl FromStr for Template {
                 _ => literal.push(ch),
             }
         }
+
         if !literal.is_empty() {
             segments.push(Segment::Literal(literal.into_boxed_str()));
         }
@@ -99,27 +101,31 @@ mod test {
 
     #[test]
     fn parse_template() {
-        let parse = |template| match Template::from_str(template) {
-            Ok(res) => res,
-        };
+        let mut settings = insta::Settings::clone_current();
+        settings.set_prepend_module_to_snapshot(false);
 
-        insta::assert_debug_snapshot!(
-            "all metrics with separators",
-            parse(
-                "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}",
-            ),
-        );
-        insta::assert_debug_snapshot!(
-            "grouped by category",
-            parse("CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}",)
-        );
-        insta::assert_debug_snapshot!(
-            "network focused",
-            parse("↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}")
-        );
-        insta::assert_debug_snapshot!("minimal", parse("{cpu_usage} {ram_usage}"));
-        insta::assert_debug_snapshot!("temps only", parse("CPU {cpu_temp} GPU {gpu_temp}"));
-        insta::assert_debug_snapshot!("escaped braces", parse("{{cpu_usage}}"));
-        insta::assert_debug_snapshot!("escaped then variable", parse("{{{cpu_usage}"));
+        settings.bind(|| {
+            let parse = |template| match Template::from_str(template) {
+                Ok(res) => res,
+            };
+            insta::assert_debug_snapshot!(
+                "all_metrics_with_separators",
+                parse(
+                    "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}",
+                ),
+            );
+            insta::assert_debug_snapshot!(
+                "grouped_by_category",
+                parse("CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}",)
+            );
+            insta::assert_debug_snapshot!(
+                "network_focused",
+                parse("↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}")
+            );
+            insta::assert_debug_snapshot!("minimal", parse("{cpu_usage} {ram_usage}"));
+            insta::assert_debug_snapshot!("temps_only", parse("CPU {cpu_temp} GPU {gpu_temp}"));
+            insta::assert_debug_snapshot!("escaped_braces", parse("{{cpu_usage}}"));
+            insta::assert_debug_snapshot!("escaped_then_variable", parse("{{{cpu_usage}"));
+        });
     }
 }

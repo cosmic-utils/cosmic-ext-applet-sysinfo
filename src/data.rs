@@ -58,10 +58,10 @@ impl Data {
     /// Refresh only the subsystems the current template actually uses.
     pub(crate) fn refresh(&mut self, requires: Requires, config: &SysInfoConfig) {
         let needs_cpu = requires.contains(Variable::CpuUsage);
+        let needs_cpu_temp = requires.contains(Variable::CpuTemp);
         let needs_ram = requires.contains(Variable::RamUsage);
         let needs_download = requires.contains(Variable::DlSpeed);
         let needs_upload = requires.contains(Variable::UlSpeed);
-        let needs_cpu_temp = requires.contains(Variable::CpuTemp);
         let needs_gpu_temp = requires.contains(Variable::GpuTemp);
         let needs_gpu_usage = requires.contains(Variable::GpuUsage);
 
@@ -74,7 +74,6 @@ impl Data {
 
         // sysinfo system refresh
         let mut refresh = RefreshKind::nothing();
-
         if needs_cpu {
             refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_cpu_usage());
         }

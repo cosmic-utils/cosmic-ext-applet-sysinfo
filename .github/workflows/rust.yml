@@ -18,6 +18,8 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install dependencies
       run: sudo apt install libxkbcommon-dev
+    - name: Test
+      run: cargo test
     - name: Check formatting
       run: cargo fmt --check
     - name: Build
