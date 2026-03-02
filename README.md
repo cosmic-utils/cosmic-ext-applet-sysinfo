@@ -46,6 +46,8 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
 
+Use `{{` and `}}` for literal braces in your template.
+
 ### Example templates
 
 All metrics with separators:
