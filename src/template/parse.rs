@@ -101,13 +101,10 @@ mod test {
 
     #[test]
     fn parse_template() {
-        let mut settings = insta::Settings::clone_current();
-        settings.set_prepend_module_to_snapshot(false);
-
-        settings.bind(|| {
-            let parse = |template| match Template::from_str(template) {
-                Ok(res) => res,
-            };
+        let parse = |template| match Template::from_str(template) {
+            Ok(res) => res,
+        };
+        insta::with_settings!({ prepend_module_to_snapshot => false }, {
             insta::assert_debug_snapshot!(
                 "all_metrics_with_separators",
                 parse(
