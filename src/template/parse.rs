@@ -104,6 +104,7 @@ mod test {
         let parse = |template| match Template::from_str(template) {
             Ok(res) => res,
         };
+
         insta::with_settings!({ prepend_module_to_snapshot => false }, {
             insta::assert_debug_snapshot!(
                 "all_metrics_with_separators",
