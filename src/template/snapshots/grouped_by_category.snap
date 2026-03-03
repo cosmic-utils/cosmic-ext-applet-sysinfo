@@ -1,0 +1,45 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}\",)"
+---
+Template {
+    segments: [
+        Literal(
+            "CPU ",
+        ),
+        Variable(
+            CpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            CpuTemp,
+        ),
+        Literal(
+            " | GPU ",
+        ),
+        Variable(
+            GpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            GpuTemp,
+        ),
+        Literal(
+            " | RAM ",
+        ),
+        Variable(
+            RamUsage,
+        ),
+    ],
+    requires: {
+        "cpu_usage",
+        "ram_usage",
+        "cpu_temp",
+        "gpu_temp",
+        "gpu_usage",
+    },
+}

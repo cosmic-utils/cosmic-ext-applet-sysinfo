@@ -7,6 +7,13 @@ authors = ["rwxroot <rwxroot@proton.me>"]
 homepage = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/"
 repository = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git"
 
+# insta benefits from being compiled with optimizations, even in debug mode
+#
+# see https://insta.rs/docs/quickstart/
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
+
 [profile.release]
 lto = "fat"
 
@@ -21,12 +28,16 @@ libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = fa
 	"applet",
 ] }
 rust-embed = { version = "8.11.0", default-features = false }
-sysinfo = { version = "0.38.0", default-features = false, features = [
+sysinfo = { version = "0.38.2", default-features = false, features = [
 	"system",
 	"network",
+	"component",
 ] }
 tracing = { version = "0.1.44", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.22", default-features = false, features = [
 	"ansi",
 	"env-filter",
 ] }
+
+[dev-dependencies]
+insta = "1.46.3"

@@ -6,12 +6,27 @@ const CONFIG_VERSION: u64 = 1;
 
 pub(crate) const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
-#[derive(Default, Debug, Clone, CosmicConfigEntry)]
+#[derive(Debug, Clone, CosmicConfigEntry)]
 pub(crate) struct SysInfoConfig {
     pub(crate) include_interfaces: Option<Vec<String>>,
     pub(crate) exclude_interfaces: Option<Vec<String>>,
     /// Whether to include Swap usage in the RAM segment
     pub(crate) include_swap_in_ram: bool,
+    /// Template string controlling the applet display.
+    /// Available variables: {cpu_usage}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
+    /// {dl_speed}, {ul_speed}
+    pub(crate) template: String,
+}
+
+impl Default for SysInfoConfig {
+    fn default() -> Self {
+        Self {
+            include_interfaces: None,
+            exclude_interfaces: None,
+            include_swap_in_ram: false,
+            template: "CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s".to_string(),
+        }
+    }
 }
 
 impl SysInfoConfig {

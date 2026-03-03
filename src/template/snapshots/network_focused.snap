@@ -1,0 +1,31 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "↓",
+        ),
+        Variable(
+            DlSpeed,
+        ),
+        Literal(
+            "M/s ↑",
+        ),
+        Variable(
+            UlSpeed,
+        ),
+        Literal(
+            "M/s | CPU ",
+        ),
+        Variable(
+            CpuUsage,
+        ),
+    ],
+    requires: {
+        "cpu_usage",
+        "dl_speed",
+        "ul_speed",
+    },
+}

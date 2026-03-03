@@ -1,19 +1,43 @@
-use std::{
-    fs,
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::{str::FromStr, time::Duration};
 
-use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
+use cosmic::iced::Color;
 use tracing::{debug, trace};
 
 use crate::{
     config::{APP_ID, Flags, SysInfoConfig},
-    fl,
+    data, fl, template,
 };
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
+}
+
+/// The colours used in the UI (mainly for the template right now)
+pub(crate) struct ThemeColors {
+    pub(crate) yellow: Color,
+    pub(crate) red: Color,
+}
+
+impl ThemeColors {
+    fn from_active_theme() -> Self {
+        let theme = cosmic::theme::active();
+        let cosmic = theme.cosmic();
+
+        Self {
+            yellow: cosmic.warning_color().into(),
+            red: cosmic.destructive_color().into(),
+        }
+    }
+
+    pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
+        if value >= critical {
+            Some(self.red)
+        } else if value >= warn {
+            Some(self.yellow)
+        } else {
+            None
+        }
+    }
 }
 
 struct SysInfo {
@@ -21,89 +45,24 @@ struct SysInfo {
     popup: Option<cosmic::iced::window::Id>,
     config: SysInfoConfig,
     config_handler: Option<cosmic::cosmic_config::Config>,
-    system: System,
-    networks: Networks,
-    cpu_usage: f32,
-    ram_usage: u64,
-    download_speed: f64,
-    upload_speed: f64,
-    last_scan: Instant,
-    physical_interfaces: Vec<String>,
+    data: data::Data,
+    template: template::Template,
 }
 
 impl SysInfo {
-    fn get_physical_interfaces(config: &SysInfoConfig) -> Vec<String> {
-        let mut interfaces = Vec::new();
-
-        if let Ok(entries) = fs::read_dir("/sys/class/net") {
-            for entry in entries.flatten() {
-                let interface = entry.file_name().into_string().unwrap_or_default();
-
-                if Path::new(&format!("/sys/class/net/{}/device", interface)).exists() {
-                    interfaces.push(interface);
-                }
-            }
-        }
-
-        // Apply config filters
-        if let Some(included_interfaces) = &config.include_interfaces {
-            interfaces.retain(|interface| included_interfaces.contains(interface));
-        }
-        if let Some(excluded_interface) = &config.exclude_interfaces {
-            interfaces.retain(|interface| !excluded_interface.contains(interface));
-        }
-
-        interfaces
-    }
-
-    fn rescan_physical_interfaces(&mut self) {
-        self.physical_interfaces = Self::get_physical_interfaces(&self.config);
-        self.last_scan = Instant::now();
-    }
-
-    fn update_sysinfo_data(&mut self) {
-        // Rescan interfaces every 10 seconds
-        if self.last_scan.elapsed() > Duration::from_secs(10) {
-            self.rescan_physical_interfaces();
-        }
-
-        self.system.refresh_specifics(
-            RefreshKind::nothing()
-                .with_memory(MemoryRefreshKind::nothing().with_ram())
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-        );
-
-        self.cpu_usage = self.system.global_cpu_usage();
-        self.ram_usage = if self.config.include_swap_in_ram {
-            ((self.system.used_memory() + self.system.used_swap()) * 100)
-                / (self.system.total_memory() + self.system.total_swap())
-        } else {
-            (self.system.used_memory() * 100) / self.system.total_memory()
-        };
-
-        self.networks.refresh(true);
-
-        let mut upload = 0;
-        let mut download = 0;
-
-        for (name, data) in self.networks.iter() {
-            if self.physical_interfaces.contains(name) {
-                upload += data.transmitted();
-                download += data.received();
-            }
-        }
-
-        self.upload_speed = (upload as f64) / 1_000_000.0;
-        self.download_speed = (download as f64) / 1_000_000.0;
+    fn update_template_cache(&mut self) {
+        let Ok(template) = template::Template::from_str(&self.config.template);
+        self.template = template;
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Message {
+pub(crate) enum Message {
     Tick,
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
+    TemplateChanged(String),
 }
 
 impl cosmic::Application for SysInfo {
@@ -118,21 +77,8 @@ impl cosmic::Application for SysInfo {
         flags: Self::Flags,
     ) -> (Self, cosmic::app::Task<Self::Message>) {
         let config = flags.config;
-
-        let memory_config = if config.include_swap_in_ram {
-            MemoryRefreshKind::nothing().with_ram().with_swap()
-        } else {
-            MemoryRefreshKind::nothing().with_ram()
-        };
-        let system = System::new_with_specifics(
-            RefreshKind::nothing()
-                .with_memory(memory_config)
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
-        );
-        let networks = Networks::new_with_refreshed_list();
-
-        let last_scan = Instant::now();
-        let physical_interfaces = SysInfo::get_physical_interfaces(&config);
+        let data = data::Data::new(&config);
+        let Ok(template) = template::Template::from_str(&config.template);
 
         (
             Self {
@@ -140,14 +86,8 @@ impl cosmic::Application for SysInfo {
                 popup: None,
                 config,
                 config_handler: flags.config_handler,
-                system,
-                networks,
-                cpu_usage: 0.0,
-                ram_usage: 0,
-                download_speed: 0.00,
-                upload_speed: 0.00,
-                last_scan,
-                physical_interfaces,
+                data,
+                template,
             },
             cosmic::task::none(),
         )
@@ -181,32 +121,28 @@ impl cosmic::Application for SysInfo {
         }
 
         match message {
-            Message::Tick => self.update_sysinfo_data(),
+            Message::Tick => self.data.refresh(self.template.requires, &self.config),
             Message::ToggleWindow => {
                 if let Some(id) = self.popup.take() {
-                    debug!("have popup with id={id}, destroying");
-
                     return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(
                         id,
                     );
-                } else {
-                    debug!("do not have a popup, creating");
-
-                    let new_id = cosmic::iced::window::Id::unique();
-                    self.popup.replace(new_id);
-
-                    let popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
-                        None,
-                        None,
-                        None,
-                    );
-
-                    return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
-                        popup_settings,
-                    );
                 }
+
+                let new_id = cosmic::iced::window::Id::unique();
+                self.popup.replace(new_id);
+
+                let popup_settings = self.core.applet.get_popup_settings(
+                    self.core.main_window_id().unwrap(),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
+
+                return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
+                    popup_settings,
+                );
             }
             Message::PopupClosed(id) => {
                 self.popup.take_if(|stored_id| stored_id == &id);
@@ -218,23 +154,25 @@ impl cosmic::Application for SysInfo {
                     tracing::error!("{error}")
                 }
             }
+            Message::TemplateChanged(value) => {
+                if let Some(handler) = &self.config_handler
+                    && let Err(error) = self.config.set_template(handler, value)
+                {
+                    tracing::error!("failed to set template: {error}")
+                }
+                self.update_template_cache();
+            }
         }
 
         cosmic::task::none()
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        let data = {
-            cosmic::iced_widget::row![
-                cosmic::iced_widget::text(format!("CPU {:.0}%", self.cpu_usage)),
-                cosmic::iced_widget::text(format!("RAM {}%", self.ram_usage)),
-                cosmic::iced_widget::text(format!("↓{:.2}M/s", self.download_speed)),
-                cosmic::iced_widget::text(format!("↑{:.2}M/s", self.upload_speed)),
-            ]
-            .spacing(4)
-        };
+        let colors = ThemeColors::from_active_theme();
 
-        let button = cosmic::widget::button::custom(data)
+        let content = self.template.render(&self.data, &colors);
+
+        let button = cosmic::widget::button::custom(content)
             .class(cosmic::theme::Button::AppletIcon)
             .on_press_down(Message::ToggleWindow);
 
@@ -249,9 +187,16 @@ impl cosmic::Application for SysInfo {
                 .on_toggle(Message::ToggleIncludeSwapWithRam),
         ];
 
+        let template_input = cosmic::iced_widget::column![
+            cosmic::widget::text::body(fl!("template-label")),
+            cosmic::widget::text_input("", &self.config.template)
+                .on_input(Message::TemplateChanged),
+        ]
+        .spacing(4);
+
         let data = cosmic::iced_widget::column![
-            // padding comment to make formatting nicer
-            cosmic::applet::padded_control(include_swap_in_ram_toggler)
+            cosmic::applet::padded_control(include_swap_in_ram_toggler),
+            cosmic::applet::padded_control(template_input),
         ]
         .padding([16, 0]);
 

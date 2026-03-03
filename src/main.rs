@@ -1,6 +1,8 @@
 mod applet;
 mod config;
+mod data;
 mod i18n;
+mod template;
 
 fn main() -> cosmic::iced::Result {
     // Initialize logging

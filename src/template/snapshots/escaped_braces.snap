@@ -1,0 +1,12 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"{{cpu_usage}}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "{cpu_usage}",
+        ),
+    ],
+    requires: {},
+}

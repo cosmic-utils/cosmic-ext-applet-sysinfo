@@ -8,6 +8,98 @@
     <img alt="Applet Screenshot" src="https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/blob/main/data/applet_screenshot_2.png">
 </p>
 
+## Features
+
+- **CPU usage** — percentage of total CPU utilization
+- **RAM usage** — percentage of memory used (optionally including swap)
+- **Network speed** — download and upload speeds in MB/s
+- **CPU temperature** — reads from common thermal sensors via sysinfo
+- **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
+- **GPU usage** — reads from sysfs (`gpu_busy_percent`), falls back to `nvidia-smi` for NVIDIA
+- **Color-coded values** — metrics change color (normal → yellow → red) based on severity using COSMIC theme colors
+
+## Display Template
+
+The applet uses a configurable template string to control what is displayed and in what order. Edit the `template` file in your config directory:
+
+```sh
+~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo/v1/template
+```
+
+### Default template
+
+```
+CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
+```
+
+### Available variables
+
+| Variable | Description | Example output |
+|---|---|---|
+| `{cpu_usage}` | CPU usage % (0 decimals) | `45%` |
+| `{ram_usage}` | RAM usage % | `67%` |
+| `{cpu_temp}` | CPU temperature in °C | `51°C` |
+| `{gpu_temp}` | GPU temperature in °C | `48°C` |
+| `{gpu_usage}` | GPU usage % | `3%` |
+| `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
+| `{ul_speed}` | Upload speed in MB/s (2 decimals) | `0.45` |
+
+When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
+
+Use `{{` and `}}` for literal braces in your template.
+
+### Example templates
+
+All metrics with separators:
+```
+{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}
+```
+→ `48°C 3% | 51°C 45% | 67% | ↓1.23 ↑0.45`
+
+Grouped by category:
+```
+CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}
+```
+→ `CPU 45% 51°C | GPU 3% 48°C | RAM 67%`
+
+Network focused:
+```
+↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}
+```
+→ `↓1.23M/s ↑0.45M/s | CPU 45%`
+
+Minimal:
+```
+{cpu_usage} {ram_usage}
+```
+→ `45% 67%`
+
+Temps only:
+```
+CPU {cpu_temp} GPU {gpu_temp}
+```
+→ `CPU 51°C GPU 48°C`
+
+## Color Coding
+
+Values are automatically color-coded using COSMIC theme colors:
+
+| Metric | Normal | Yellow | Red |
+|---|---|---|---|
+| CPU usage | < 50% | 50–80% | ≥ 80% |
+| RAM usage | < 50% | 50–80% | ≥ 80% |
+| CPU temp | < 60°C | 60–80°C | ≥ 80°C |
+| GPU temp | < 60°C | 60–85°C | ≥ 85°C |
+| GPU usage | < 50% | 50–80% | ≥ 80% |
+
+Download and upload speeds are not color-coded (high speed is not a problem).
+
+## GPU Monitoring
+
+GPU temperature and usage are read using sysinfo components and sysfs for AMD/Intel GPUs. For NVIDIA GPUs, the applet falls back to `nvidia-smi` when sysinfo/sysfs data is unavailable.
+
+`nvidia-smi` is an optional dependency — GPU metrics will simply show `--` if it is not installed and sysfs data is unavailable.
+
 ## Installation
 
 ### Flatpak
