@@ -80,6 +80,14 @@ impl Template {
                 Some(s) => (format!("{s:.2}").into(), None),
                 None => ("--".into(), None),
             },
+            Variable::PublicIpv4 => match &data.public_ipv4 {
+                Some(ip) => (ip.clone().into(), None),
+                None => ("--".into(), None),
+            },
+            Variable::PublicIpv6 => match &data.public_ipv6 {
+                Some(ip) => (ip.clone().into(), None),
+                None => ("--".into(), None),
+            },
         }
     }
 }

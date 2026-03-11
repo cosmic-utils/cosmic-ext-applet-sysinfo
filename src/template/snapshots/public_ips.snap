@@ -1,0 +1,24 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"IPv4 {pub_ipv4} | IPv6 {pub_ipv6}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "IPv4 ",
+        ),
+        Variable(
+            PublicIpv4,
+        ),
+        Literal(
+            " | IPv6 ",
+        ),
+        Variable(
+            PublicIpv6,
+        ),
+    ],
+    requires: {
+        "pub_ipv4",
+        "pub_ipv6",
+    },
+}
