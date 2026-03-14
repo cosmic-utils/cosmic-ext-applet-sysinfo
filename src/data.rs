@@ -13,6 +13,11 @@ use crate::{
     template::{Requires, Variable},
 };
 
+enum IpVersion {
+    V4,
+    V6,
+}
+
 /// The data coming from various sources (mostly the `sysinfo` crate)
 ///
 /// Manages each source, and stores the values extracted from them
@@ -22,7 +27,6 @@ pub(crate) struct Data {
     components: Components,
     physical_interfaces: Vec<String>,
     last_interface_scan: Instant,
-
     last_ip_fetch: Instant,
 
     pub(crate) cpu_usage: Option<f32>,
@@ -163,15 +167,15 @@ impl Data {
 
         // public IPs (refresh every 5 minutes, or immediately if a needed value is missing)
         if (needs_pub_ipv4 || needs_pub_ipv6)
-            && (self.last_ip_fetch.elapsed() > Duration::from_secs(300)
+            && (self.last_ip_fetch.elapsed() > Duration::from_mins(5)
                 || (needs_pub_ipv4 && self.public_ipv4.is_none())
                 || (needs_pub_ipv6 && self.public_ipv6.is_none()))
         {
             if needs_pub_ipv4 {
-                self.public_ipv4 = Self::fetch_public_ip("-4");
+                self.public_ipv4 = Self::fetch_public_ip(IpVersion::V4);
             }
             if needs_pub_ipv6 {
-                self.public_ipv6 = Self::fetch_public_ip("-6");
+                self.public_ipv6 = Self::fetch_public_ip(IpVersion::V6);
             }
             self.last_ip_fetch = Instant::now();
         }
@@ -250,9 +254,11 @@ impl Data {
     }
 
     /// Fetch a public IP address using curl.
-    ///
-    /// `ip_flag` should be `"-4"` for IPv4 or `"-6"` for IPv6.
-    fn fetch_public_ip(ip_flag: &str) -> Option<String> {
+    fn fetch_public_ip(version: IpVersion) -> Option<String> {
+        let ip_flag = match version {
+            IpVersion::V4 => "-4",
+            IpVersion::V6 => "-6",
+        };
         let output = Command::new("curl")
             .args([ip_flag, "-sf", "--max-time", "5", "https://icanhazip.com"])
             .output()
