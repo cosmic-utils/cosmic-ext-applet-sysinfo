@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::{
@@ -27,7 +28,8 @@ pub(crate) struct Data {
     components: Components,
     physical_interfaces: Vec<String>,
     last_interface_scan: Instant,
-    last_ip_fetch: Instant,
+    next_ip_fetch: Instant,
+    ip_backoff: ExponentialBackoff,
 
     pub(crate) cpu_usage: Option<f32>,
     pub(crate) ram_usage: Option<u64>,
@@ -47,8 +49,13 @@ impl Data {
         let components = Components::new_with_refreshed_list();
         let physical_interfaces = Self::detect_physical_interfaces(config);
 
-        // Ensure IPs are fetched on the first tick
-        let expired = Instant::now() - Duration::from_secs(600);
+        let ip_backoff = ExponentialBackoff {
+            initial_interval: Duration::from_secs(10),
+            max_interval: Duration::from_secs(300),
+            multiplier: 2.0,
+            max_elapsed_time: None,
+            ..ExponentialBackoff::default()
+        };
 
         Self {
             system,
@@ -56,7 +63,8 @@ impl Data {
             components,
             physical_interfaces,
             last_interface_scan: Instant::now(),
-            last_ip_fetch: expired,
+            next_ip_fetch: Instant::now(), // triggers an immediate fetch on the first tick
+            ip_backoff,
             cpu_usage: None,
             ram_usage: None,
             download_speed: None,
@@ -165,20 +173,35 @@ impl Data {
             self.gpu_usage = None;
         }
 
-        // public IPs (refresh every 5 minutes, or immediately if a needed value is missing)
-        if (needs_pub_ipv4 || needs_pub_ipv6)
-            && (self.last_ip_fetch.elapsed() > Duration::from_mins(5)
-                || (needs_pub_ipv4 && self.public_ipv4.is_none())
-                || (needs_pub_ipv6 && self.public_ipv6.is_none()))
-        {
+        // public IPs — exponential backoff on failure, 5-minute cadence on success
+        if (needs_pub_ipv4 || needs_pub_ipv6) && Instant::now() >= self.next_ip_fetch {
+            let mut any_failed = false;
+
             if needs_pub_ipv4 {
                 self.public_ipv4 = Self::fetch_public_ip(IpVersion::V4);
+                if self.public_ipv4.is_none() {
+                    any_failed = true;
+                }
             }
             if needs_pub_ipv6 {
                 self.public_ipv6 = Self::fetch_public_ip(IpVersion::V6);
+                if self.public_ipv6.is_none() {
+                    any_failed = true;
+                }
             }
-            self.last_ip_fetch = Instant::now();
+
+            if any_failed {
+                let delay = self
+                    .ip_backoff
+                    .next_backoff()
+                    .unwrap_or(Duration::from_secs(300));
+                self.next_ip_fetch = Instant::now() + delay;
+            } else {
+                self.ip_backoff.reset();
+                self.next_ip_fetch = Instant::now() + Duration::from_secs(300);
+            }
         }
+
         if !needs_pub_ipv4 {
             self.public_ipv4 = None;
         }
