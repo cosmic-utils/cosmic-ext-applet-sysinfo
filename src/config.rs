@@ -14,7 +14,7 @@ pub(crate) struct SysInfoConfig {
     pub(crate) include_swap_in_ram: bool,
     /// Template string controlling the applet display.
     /// Available variables: {cpu_usage}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
-    /// {dl_speed}, {ul_speed}
+    /// {dl_speed}, {ul_speed}, {pub_ipv4}, {pub_ipv6}
     pub(crate) template: String,
 }
 

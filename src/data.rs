@@ -6,12 +6,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+use backoff::{ExponentialBackoff, backoff::Backoff};
 use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::{
     config::SysInfoConfig,
     template::{Requires, Variable},
 };
+
+const IP_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+
+enum IpVersion {
+    V4,
+    V6,
+}
 
 /// The data coming from various sources (mostly the `sysinfo` crate)
 ///
@@ -22,6 +30,8 @@ pub(crate) struct Data {
     components: Components,
     physical_interfaces: Vec<String>,
     last_interface_scan: Instant,
+    next_ip_fetch: Instant,
+    ip_backoff: ExponentialBackoff,
 
     pub(crate) cpu_usage: Option<f32>,
     pub(crate) ram_usage: Option<u64>,
@@ -30,6 +40,8 @@ pub(crate) struct Data {
     pub(crate) cpu_temp: Option<f32>,
     pub(crate) gpu_temp: Option<f32>,
     pub(crate) gpu_usage: Option<u64>,
+    pub(crate) public_ipv4: Option<String>,
+    pub(crate) public_ipv6: Option<String>,
 }
 
 impl Data {
@@ -39,12 +51,21 @@ impl Data {
         let components = Components::new_with_refreshed_list();
         let physical_interfaces = Self::detect_physical_interfaces(config);
 
+        let ip_backoff = ExponentialBackoff {
+            max_interval: IP_REFRESH_INTERVAL,
+            multiplier: 2.0,
+            max_elapsed_time: None,
+            ..ExponentialBackoff::default()
+        };
+
         Self {
             system,
             networks,
             components,
             physical_interfaces,
             last_interface_scan: Instant::now(),
+            next_ip_fetch: Instant::now(), // triggers an immediate fetch on the first tick
+            ip_backoff,
             cpu_usage: None,
             ram_usage: None,
             download_speed: None,
@@ -52,6 +73,8 @@ impl Data {
             cpu_temp: None,
             gpu_temp: None,
             gpu_usage: None,
+            public_ipv4: None,
+            public_ipv6: None,
         }
     }
 
@@ -64,6 +87,8 @@ impl Data {
         let needs_upload = requires.contains(Variable::UlSpeed);
         let needs_gpu_temp = requires.contains(Variable::GpuTemp);
         let needs_gpu_usage = requires.contains(Variable::GpuUsage);
+        let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
+        let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -148,6 +173,56 @@ impl Data {
             self.gpu_temp = None;
             self.gpu_usage = None;
         }
+
+        // public IPs — exponential backoff on failure, 5-minute cadence on success
+        if needs_pub_ipv4 || needs_pub_ipv6 {
+            let have_ipv4 = self.public_ipv4.is_some();
+            let have_ipv6 = self.public_ipv6.is_some();
+            let need_refresh = Instant::now() >= self.next_ip_fetch;
+            let mut any_failed = false;
+            let mut any_fetched = false;
+
+            if needs_pub_ipv4 && (!have_ipv4 || need_refresh) {
+                tracing::debug!("trying to refresh public IPv4");
+                any_fetched = true;
+                self.public_ipv4 = Self::fetch_public_ip(IpVersion::V4);
+                if self.public_ipv4.is_none() {
+                    tracing::warn!("failed to fetch IPv4");
+                    any_failed = true;
+                }
+            }
+            if needs_pub_ipv6 && (!have_ipv6 || need_refresh) {
+                tracing::debug!("trying to refresh public IPv6");
+                any_fetched = true;
+                self.public_ipv6 = Self::fetch_public_ip(IpVersion::V6);
+                if self.public_ipv6.is_none() {
+                    tracing::warn!("failed to fetch IPv6");
+                    any_failed = true;
+                }
+            }
+
+            if any_fetched {
+                if any_failed {
+                    let delay = self
+                        .ip_backoff
+                        .next_backoff()
+                        .unwrap_or(IP_REFRESH_INTERVAL);
+                    tracing::trace!("IP fetch failed, retrying in {delay:?}");
+                    self.next_ip_fetch = Instant::now() + delay;
+                } else {
+                    self.ip_backoff.reset();
+                    tracing::trace!("IP fetch succeeded, next refresh in {IP_REFRESH_INTERVAL:?}");
+                    self.next_ip_fetch = Instant::now() + IP_REFRESH_INTERVAL;
+                }
+            }
+        }
+
+        if !needs_pub_ipv4 {
+            self.public_ipv4 = None;
+        }
+        if !needs_pub_ipv6 {
+            self.public_ipv6 = None;
+        }
     }
 
     fn detect_physical_interfaces(config: &SysInfoConfig) -> Vec<String> {
@@ -214,6 +289,23 @@ impl Data {
             }
         }
         None
+    }
+
+    /// Fetch a public IP address using curl.
+    fn fetch_public_ip(version: IpVersion) -> Option<String> {
+        let ip_flag = match version {
+            IpVersion::V4 => "-4",
+            IpVersion::V6 => "-6",
+        };
+        let output = Command::new("curl")
+            .args([ip_flag, "-sf", "--max-time", "5", "https://icanhazip.com"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        (!ip.is_empty()).then_some(ip)
     }
 
     fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {

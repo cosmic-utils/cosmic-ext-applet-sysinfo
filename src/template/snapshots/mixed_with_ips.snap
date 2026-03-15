@@ -1,0 +1,24 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"CPU {cpu_usage} | {pub_ipv4}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "CPU ",
+        ),
+        Variable(
+            CpuUsage,
+        ),
+        Literal(
+            " | ",
+        ),
+        Variable(
+            PublicIpv4,
+        ),
+    ],
+    requires: {
+        "cpu_usage",
+        "pub_ipv4",
+    },
+}

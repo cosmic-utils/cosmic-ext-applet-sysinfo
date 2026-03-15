@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 
-use crate::template::Variable::{CpuTemp, CpuUsage, DlSpeed, GpuTemp, GpuUsage, RamUsage, UlSpeed};
+use crate::template::Variable::{
+    CpuTemp, CpuUsage, DlSpeed, GpuTemp, GpuUsage, PublicIpv4, PublicIpv6, RamUsage, UlSpeed,
+};
 
 mod parse;
 mod render;
@@ -21,15 +23,17 @@ pub(crate) enum Variable {
     GpuUsage = 4,
     DlSpeed = 5,
     UlSpeed = 6,
+    PublicIpv4 = 7,
+    PublicIpv6 = 8,
 }
 
-const ALL_VARIABLES: [Variable; 7] = [
-    CpuUsage, RamUsage, CpuTemp, GpuTemp, GpuUsage, DlSpeed, UlSpeed,
+const ALL_VARIABLES: [Variable; 9] = [
+    CpuUsage, RamUsage, CpuTemp, GpuTemp, GpuUsage, DlSpeed, UlSpeed, PublicIpv4, PublicIpv6,
 ];
 
 impl Variable {
-    const fn bit(self) -> u8 {
-        1 << (self as u8)
+    const fn bit(self) -> u16 {
+        1 << (self as u16)
     }
 }
 
@@ -42,7 +46,7 @@ pub(crate) enum Segment {
 
 /// Compact bitset tracking which `Variable`s a template references.
 #[derive(Clone, Copy, Default)]
-pub(crate) struct Requires(u8);
+pub(crate) struct Requires(u16);
 
 impl Requires {
     pub(crate) fn contains(self, var: Variable) -> bool {
@@ -67,6 +71,8 @@ impl Debug for Requires {
                 GpuUsage => "gpu_usage",
                 DlSpeed => "dl_speed",
                 UlSpeed => "ul_speed",
+                PublicIpv4 => "pub_ipv4",
+                PublicIpv6 => "pub_ipv6",
             })
             .collect();
 
