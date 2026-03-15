@@ -175,43 +175,45 @@ impl Data {
         }
 
         // public IPs — exponential backoff on failure, 5-minute cadence on success
-        let have_ipv4 = self.public_ipv4.is_some();
-        let have_ipv6 = self.public_ipv6.is_some();
-        let need_refresh = Instant::now() >= self.next_ip_fetch;
-        let mut any_failed = false;
-        let mut any_fetched = false;
+        if needs_pub_ipv4 || needs_pub_ipv6 {
+            let have_ipv4 = self.public_ipv4.is_some();
+            let have_ipv6 = self.public_ipv6.is_some();
+            let need_refresh = Instant::now() >= self.next_ip_fetch;
+            let mut any_failed = false;
+            let mut any_fetched = false;
 
-        if needs_pub_ipv4 && (!have_ipv4 || need_refresh) {
-            tracing::debug!("trying to refresh public IPv4");
-            any_fetched = true;
-            self.public_ipv4 = Self::fetch_public_ip(IpVersion::V4);
-            if self.public_ipv4.is_none() {
-                tracing::warn!("failed to fetch IPv4");
-                any_failed = true;
+            if needs_pub_ipv4 && (!have_ipv4 || need_refresh) {
+                tracing::debug!("trying to refresh public IPv4");
+                any_fetched = true;
+                self.public_ipv4 = Self::fetch_public_ip(IpVersion::V4);
+                if self.public_ipv4.is_none() {
+                    tracing::warn!("failed to fetch IPv4");
+                    any_failed = true;
+                }
             }
-        }
-        if needs_pub_ipv6 && (!have_ipv6 || need_refresh) {
-            tracing::debug!("trying to refresh public IPv6");
-            any_fetched = true;
-            self.public_ipv6 = Self::fetch_public_ip(IpVersion::V6);
-            if self.public_ipv6.is_none() {
-                tracing::warn!("failed to fetch IPv6");
-                any_failed = true;
+            if needs_pub_ipv6 && (!have_ipv6 || need_refresh) {
+                tracing::debug!("trying to refresh public IPv6");
+                any_fetched = true;
+                self.public_ipv6 = Self::fetch_public_ip(IpVersion::V6);
+                if self.public_ipv6.is_none() {
+                    tracing::warn!("failed to fetch IPv6");
+                    any_failed = true;
+                }
             }
-        }
 
-        if any_fetched {
-            if any_failed {
-                let delay = self
-                    .ip_backoff
-                    .next_backoff()
-                    .unwrap_or(IP_REFRESH_INTERVAL);
-                tracing::trace!("IP fetch failed, retrying in {delay:?}");
-                self.next_ip_fetch = Instant::now() + delay;
-            } else {
-                self.ip_backoff.reset();
-                tracing::trace!("IP fetch succeeded, next refresh in {IP_REFRESH_INTERVAL:?}");
-                self.next_ip_fetch = Instant::now() + IP_REFRESH_INTERVAL;
+            if any_fetched {
+                if any_failed {
+                    let delay = self
+                        .ip_backoff
+                        .next_backoff()
+                        .unwrap_or(IP_REFRESH_INTERVAL);
+                    tracing::trace!("IP fetch failed, retrying in {delay:?}");
+                    self.next_ip_fetch = Instant::now() + delay;
+                } else {
+                    self.ip_backoff.reset();
+                    tracing::trace!("IP fetch succeeded, next refresh in {IP_REFRESH_INTERVAL:?}");
+                    self.next_ip_fetch = Instant::now() + IP_REFRESH_INTERVAL;
+                }
             }
         }
 
