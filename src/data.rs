@@ -97,7 +97,7 @@ impl Data {
             self.last_interface_scan = Instant::now();
         }
 
-        // sysinfo system refresh
+        // Crate sysinfo system refresh
         let mut refresh = RefreshKind::nothing();
         if needs_cpu {
             refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_cpu_usage());
@@ -113,10 +113,10 @@ impl Data {
 
         self.system.refresh_specifics(refresh);
 
-        // cpu
+        // CPU
         self.cpu_usage = needs_cpu.then(|| self.system.global_cpu_usage());
 
-        // ram
+        // RAM
         self.ram_usage = needs_ram.then(|| {
             if config.include_swap_in_ram {
                 ((self.system.used_memory() + self.system.used_swap()) * 100)
@@ -126,7 +126,7 @@ impl Data {
             }
         });
 
-        // network
+        // Network
         if needs_download || needs_upload {
             self.networks.refresh(true);
             let (mut up, mut down) = (0u64, 0u64);
@@ -143,7 +143,7 @@ impl Data {
             self.upload_speed = None;
         }
 
-        // temperatures
+        // Temperatures
         if needs_cpu_temp || needs_gpu_temp {
             self.components.refresh(true);
         }
@@ -154,7 +154,7 @@ impl Data {
             None
         };
 
-        // gpu (lazy nvidia-smi)
+        // GPU (lazy nvidia-smi)
         if needs_gpu_temp || needs_gpu_usage {
             let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
@@ -174,7 +174,12 @@ impl Data {
             self.gpu_usage = None;
         }
 
-        // public IPs — exponential backoff on failure, 5-minute cadence on success
+        // Public IPs — exponential backoff on failure, 5-minute cadence on success.
+        // Only refresh if:
+        // - the template requires it, and
+        // - either:
+        //   - we have no value currently (e.g. due to a missing internet connection on the previous try)
+        //   - it's time to refresh the value
         if needs_pub_ipv4 || needs_pub_ipv6 {
             let have_ipv4 = self.public_ipv4.is_some();
             let have_ipv6 = self.public_ipv6.is_some();
