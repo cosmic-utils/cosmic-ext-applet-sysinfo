@@ -11,7 +11,7 @@ use crate::{applet, data::Data};
 impl Template {
     pub(crate) fn render<'a, Theme: text::Catalog + 'a>(
         &'a self,
-        data: &Data,
+        data: &'a Data,
         colors: &applet::ThemeColors,
     ) -> text::Rich<'a, applet::Message, Theme> {
         let spans: Vec<_> = self
@@ -30,12 +30,12 @@ impl Template {
         rich_text(spans)
     }
 
-    fn resolve_variable(
+    fn resolve_variable<'data>(
         &self,
         var: Variable,
-        data: &Data,
+        data: &'data Data,
         colors: &applet::ThemeColors,
-    ) -> (Cow<'static, str>, Option<Color>) {
+    ) -> (Cow<'data, str>, Option<Color>) {
         match var {
             Variable::CpuUsage => match data.cpu_usage {
                 Some(v) => (
@@ -78,6 +78,14 @@ impl Template {
             },
             Variable::UlSpeed => match data.upload_speed {
                 Some(s) => (format!("{s:.2}").into(), None),
+                None => ("--".into(), None),
+            },
+            Variable::PublicIpv4 => match &data.public_ipv4 {
+                Some(ip) => (ip.into(), None),
+                None => ("--".into(), None),
+            },
+            Variable::PublicIpv6 => match &data.public_ipv6 {
+                Some(ip) => (ip.into(), None),
                 None => ("--".into(), None),
             },
         }

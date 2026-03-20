@@ -1,6 +1,6 @@
 ---
 source: src/template/parse.rs
-expression: "parse(\"{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}\",)"
+expression: "parse(\"{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {pub_ipv4} {pub_ipv6}\",)"
 ---
 Template {
     segments: [
@@ -43,6 +43,18 @@ Template {
         Variable(
             UlSpeed,
         ),
+        Literal(
+            " | ",
+        ),
+        Variable(
+            PublicIpv4,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            PublicIpv6,
+        ),
     ],
     requires: {
         "cpu_usage",
@@ -52,5 +64,7 @@ Template {
         "gpu_usage",
         "dl_speed",
         "ul_speed",
+        "pub_ipv4",
+        "pub_ipv6",
     },
 }

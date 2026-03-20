@@ -78,6 +78,8 @@ impl FromStr for Variable {
             "gpu_usage" => Ok(Self::GpuUsage),
             "dl_speed" => Ok(Self::DlSpeed),
             "ul_speed" => Ok(Self::UlSpeed),
+            "pub_ipv4" => Ok(Self::PublicIpv4),
+            "pub_ipv6" => Ok(Self::PublicIpv6),
             _ => Err(()),
         }
     }
@@ -109,7 +111,7 @@ mod test {
             insta::assert_debug_snapshot!(
                 "all_metrics_with_separators",
                 parse(
-                    "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}",
+                    "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {pub_ipv4} {pub_ipv6}",
                 ),
             );
             insta::assert_debug_snapshot!(
@@ -124,6 +126,14 @@ mod test {
             insta::assert_debug_snapshot!("temps_only", parse("CPU {cpu_temp} GPU {gpu_temp}"));
             insta::assert_debug_snapshot!("escaped_braces", parse("{{cpu_usage}}"));
             insta::assert_debug_snapshot!("escaped_then_variable", parse("{{{cpu_usage}"));
+            insta::assert_debug_snapshot!(
+                "public_ips",
+                parse("IPv4 {pub_ipv4} | IPv6 {pub_ipv6}")
+            );
+            insta::assert_debug_snapshot!(
+                "mixed_with_ips",
+                parse("CPU {cpu_usage} | {pub_ipv4}")
+            );
         });
     }
 }
