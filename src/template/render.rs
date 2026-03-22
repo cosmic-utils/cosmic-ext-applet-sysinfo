@@ -41,14 +41,14 @@ impl Template {
         match var {
             Variable::CpuUsage => match data.cpu_usage {
                 Some(v) => (
-                    format!("{v:02.0}%").into(),
+                    format!("{v:>2.0}%").into(),
                     colors.threshold(v as f64, 50.0, 80.0),
                 ),
                 None => ("--%".into(), None),
             },
             Variable::RamUsage => match data.ram_usage {
                 Some(v) => (
-                    format!("{v:02}%").into(),
+                    format!("{v:>2}%").into(),
                     colors.threshold(v as f64, 50.0, 80.0),
                 ),
                 None => ("--%".into(), None),
@@ -69,7 +69,7 @@ impl Template {
             },
             Variable::GpuUsage => match data.gpu_usage {
                 Some(u) => (
-                    format!("{u:02}%").into(),
+                    format!("{u:>2}%").into(),
                     colors.threshold(u as f64, 50.0, 80.0),
                 ),
                 None => ("--%".into(), None),
