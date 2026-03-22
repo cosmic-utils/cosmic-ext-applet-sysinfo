@@ -68,19 +68,19 @@ impl Template {
                 None => ("--°C".into(), None),
             },
             Variable::GpuUsage => match data.gpu_usage {
-                Some(u) => (
-                    format!("{u:>2}%").into(),
-                    colors.threshold(u as f64, 50.0, 80.0),
+                Some(v) => (
+                    format!("{v:>2}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
                 ),
                 None => ("--%".into(), None),
             },
             Variable::DlSpeed => match data.download_speed {
-                Some(s) => (format!("{s:04.1}").into(), None),
-                None => ("--.-".into(), None),
+                Some(s) => (format!("{s:4.1}").into(), None),
+                None => (" -.-".into(), None),
             },
             Variable::UlSpeed => match data.upload_speed {
-                Some(s) => (format!("{s:04.1}").into(), None),
-                None => ("--.-".into(), None),
+                Some(s) => (format!("{s:4.1}").into(), None),
+                None => (" -.-".into(), None),
             },
             Variable::PublicIpv4 => match &data.public_ipv4 {
                 Some(ip) => (ip.into(), None),
