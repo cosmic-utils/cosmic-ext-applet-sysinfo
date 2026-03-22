@@ -1,10 +1,15 @@
-use super::{Segment, Template, Variable};
-use crate::{applet, data::Data};
+use std::borrow::Cow;
+
 use cosmic::{
     iced::Color,
     iced_widget::{rich_text, span, text},
 };
-use std::borrow::Cow;
+
+use crate::{
+    applet,
+    data::Data,
+    template::{Segment, Template, Variable},
+};
 
 impl Template {
     pub(crate) fn render<'a, Theme: text::Catalog + 'a>(
