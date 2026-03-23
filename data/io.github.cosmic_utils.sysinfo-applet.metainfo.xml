@@ -52,6 +52,11 @@
         <p>Configurable display template with colour-coded severity and support for all system metrics</p>
       </description>
     </release>
+    <release version="0.1.0" date="2026-03-03">
+      <description>
+        <p>Initial release with real-time CPU, RAM, and network monitoring for the COSMIC panel</p>
+      </description>
+    </release>
   </releases>
   <provides>
     <id>com.system76.CosmicApplet</id>
