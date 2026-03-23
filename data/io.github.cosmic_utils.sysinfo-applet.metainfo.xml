@@ -21,7 +21,7 @@
   <summary xml:lang="cs">Applet pro sledování systémových prostředků v reálném čase pro COSMIC</summary>
   <summary xml:lang="uk">Віджет для моніторингу системних ресурсів COSMIC</summary>
   <description>
-    <p>Monitor your system's CPU, memory and network usage directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
+    <p>Monitor your system's CPU, RAM, GPU, network usage as well as CPU and GPU temperature directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
     <p xml:lang="cs">Sledujte využití CPU, paměti a sítě přímo z panelu COSMIC. Získejte okamžitý přehled o výkonu systému díky přehledným a snadno čitelným ukazatelům.</p>
     <p xml:lang="uk">Слідкуйте за CPU, пам'яттю та мережею з панелі COSMIC. Отримуйте швидкий і зрозумілий огляд продуктивності системи.</p>
   </description>
@@ -36,9 +36,9 @@
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_2.png</image>
-      <caption>Detailed system resource information panel</caption>
-      <caption xml:lang="cs">Panel s podrobnými informacemi o systémových prostředcích</caption>
-      <caption xml:lang="uk">Панель з детальною інформацією про системні ресурси</caption>
+      <caption>Applet configuration view</caption>
+      <caption xml:lang="cs">Zobrazení konfigurace appletu</caption>
+      <caption xml:lang="uk">Вигляд налаштувань аплету</caption>
     </screenshot>
   </screenshots>
   <releases>
@@ -49,7 +49,7 @@
     </release>
     <release version="0.2.0" date="2026-03-20">
       <description>
-        <p>Configurable display template with color-coded severity and support for all system metrics</p>
+        <p>Configurable display template with colour-coded severity and support for all system metrics</p>
       </description>
     </release>
   </releases>
