@@ -41,6 +41,18 @@
       <caption xml:lang="uk">Панель з детальною інформацією про системні ресурси</caption>
     </screenshot>
   </screenshots>
+  <releases>
+    <release version="0.3.0" date="2026-03-23">
+      <description>
+        <p>Stabilise applet layout with zero-padded format strings</p>
+      </description>
+    </release>
+    <release version="0.2.0" date="2026-03-20">
+      <description>
+        <p>Configurable display template with color-coded severity and support for all system metrics</p>
+      </description>
+    </release>
+  </releases>
   <provides>
     <id>com.system76.CosmicApplet</id>
     <binaries>
