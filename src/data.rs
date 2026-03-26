@@ -250,7 +250,7 @@ impl Data {
     }
 
     fn find_cpu_temp(components: &Components) -> Option<f32> {
-        const LABELS: [&str; 10] = [
+        const LABELS: &[&str] = &[
             "coretemp",
             "k10temp",
             "zenpower",
@@ -262,24 +262,26 @@ impl Data {
             "tdie",
             "core",
         ];
-        LABELS.into_iter().find_map(|l| {
-            components
-                .iter()
-                .find(|c| c.label().to_lowercase() == l)
-                .and_then(|c| c.temperature())
-        })
+        components
+            .iter()
+            .find(|c| {
+                let l = c.label().to_lowercase();
+                LABELS.iter().any(|k| l.contains(k))
+            })
+            .and_then(|c| c.temperature())
     }
 
     fn find_gpu_temp(components: &Components) -> Option<f32> {
-        const LABELS: [&str; 8] = [
+        const LABELS: &[&str] = &[
             "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "mem",
         ];
-        LABELS.into_iter().find_map(|l| {
-            components
-                .iter()
-                .find(|c| c.label().to_lowercase() == l)
-                .and_then(|c| c.temperature())
-        })
+        components
+            .iter()
+            .find(|c| {
+                let l = c.label().to_lowercase();
+                LABELS.iter().any(|k| l.contains(k))
+            })
+            .and_then(|c| c.temperature())
     }
 
     fn find_gpu_usage_sysfs() -> Option<u64> {
