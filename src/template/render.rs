@@ -24,7 +24,7 @@ impl Template {
                 Segment::Literal(text) => span(&**text),
                 Segment::Variable(var) => {
                     let (text, color) = self.resolve_variable(*var, data, colors);
-                    span(text).color_maybe(color)
+                    span(text).font(cosmic::font::mono()).color_maybe(color)
                 }
                 Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
             })
