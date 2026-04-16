@@ -1,3 +1,10 @@
+#[cfg(test)]
+mod sysinfo_mock;
+#[cfg(not(test))]
+use sysinfo::Components;
+#[cfg(test)]
+use sysinfo_mock::{Component, Components};
+
 use std::{
     cell::LazyCell,
     fs,
@@ -7,7 +14,7 @@ use std::{
 };
 
 use backoff::{ExponentialBackoff, backoff::Backoff};
-use sysinfo::{Components, CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::{
     config::SysInfoConfig,
@@ -250,7 +257,7 @@ impl Data {
     }
 
     fn find_cpu_temp(components: &Components) -> Option<f32> {
-        const LABELS: &[&str] = &[
+        const LABELS: [&str; 10] = [
             "coretemp",
             "k10temp",
             "zenpower",
@@ -262,26 +269,24 @@ impl Data {
             "tdie",
             "core",
         ];
-        components
-            .iter()
-            .find(|c| {
-                let l = c.label().to_lowercase();
-                LABELS.iter().any(|k| l.contains(k))
-            })
-            .and_then(|c| c.temperature())
+        LABELS.into_iter().find_map(|l| {
+            components
+                .iter()
+                .find(|c| c.label().to_lowercase().contains(l))
+                .and_then(|c| c.temperature())
+        })
     }
 
     fn find_gpu_temp(components: &Components) -> Option<f32> {
-        const LABELS: &[&str] = &[
+        const LABELS: [&str; 8] = [
             "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "mem",
         ];
-        components
-            .iter()
-            .find(|c| {
-                let l = c.label().to_lowercase();
-                LABELS.iter().any(|k| l.contains(k))
-            })
-            .and_then(|c| c.temperature())
+        LABELS.into_iter().find_map(|l| {
+            components
+                .iter()
+                .find(|c| c.label().to_lowercase().contains(l))
+                .and_then(|c| c.temperature())
+        })
     }
 
     fn find_gpu_usage_sysfs() -> Option<u64> {
@@ -329,6 +334,79 @@ impl Data {
             Some((temp.trim().parse().ok(), util.trim().parse().ok()))
         } else {
             Some((None, None))
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    mod find_cpu_temp {
+        use super::*;
+
+        #[test]
+        fn inexact_match() {
+            let components = Components::from(vec![Component {
+                label: "k10temp Tctl",
+                temperature: 1.0,
+            }]);
+
+            // do match on the component, even though `k10temp` is only a _part_
+            // of its name
+            assert_eq!(Data::find_cpu_temp(&components), Some(1.0));
+        }
+
+        #[test]
+        fn priority() {
+            let components = Components::from(vec![
+                Component {
+                    label: "k10temp Tctl",
+                    temperature: 1.0,
+                },
+                Component {
+                    label: "coretemp foo",
+                    temperature: 2.0,
+                },
+            ]);
+
+            // choose `coretemp` over `k10temp` despite `k10temp` coming earlier
+            // in `components`, because `coretemp` comes earlier in `LABELS`
+            assert_eq!(Data::find_cpu_temp(&components), Some(2.0));
+        }
+    }
+
+    mod find_gpu_temp {
+        use super::*;
+
+        #[test]
+        fn inexact_match() {
+            let components = Components::from(vec![Component {
+                label: "amdgpu foo",
+                temperature: 1.0,
+            }]);
+
+            // do match on the component, even though `amdgpu` is only a _part_
+            // of its name
+            assert_eq!(Data::find_gpu_temp(&components), Some(1.0));
+        }
+
+        #[test]
+        fn priority() {
+            let components = Components::from(vec![
+                Component {
+                    label: "mem bar",
+                    temperature: 1.0,
+                },
+                Component {
+                    label: "junction foo",
+                    temperature: 2.0,
+                },
+            ]);
+
+            // choose `junction` over `mem` despite `mem` coming earlier
+            // in `components`, because `junction` comes earlier in `LABELS`
+            assert_eq!(Data::find_gpu_temp(&components), Some(2.0));
         }
     }
 }
