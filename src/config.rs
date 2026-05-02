@@ -12,6 +12,9 @@ pub(crate) struct SysInfoConfig {
     pub(crate) exclude_interfaces: Option<Vec<String>>,
     /// Whether to include Swap usage in the RAM segment
     pub(crate) include_swap_in_ram: bool,
+    /// Whether to render the entire template in a monospace font.
+    /// When false, the system default font is used for all spans.
+    pub(crate) use_mono_font: bool,
     /// Template string controlling the applet display.
     /// Available variables: {cpu_usage}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
     /// {dl_speed}, {ul_speed}, {pub_ipv4}, {pub_ipv6}
@@ -24,6 +27,7 @@ impl Default for SysInfoConfig {
             include_interfaces: None,
             exclude_interfaces: None,
             include_swap_in_ram: false,
+            use_mono_font: false,
             template: "CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s".to_string(),
         }
     }

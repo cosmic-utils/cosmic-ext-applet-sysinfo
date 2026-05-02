@@ -16,19 +16,29 @@ impl Template {
         &'a self,
         data: &'a Data,
         colors: &applet::ThemeColors,
+        use_mono_font: bool,
     ) -> text::Rich<'a, applet::Message, Theme> {
+        let font = use_mono_font.then(cosmic::font::mono);
         let spans: Vec<_> = self
             .segments
             .iter()
-            .map(|segment| match segment {
-                Segment::Literal(text) => span(&**text),
-                Segment::Variable(var) => {
-                    let (text, color) = self.resolve_variable(*var, data, colors);
-                    span(text).font(cosmic::font::mono()).color_maybe(color)
+            .map(|segment| {
+                let s = match segment {
+                    Segment::Literal(text) => span(&**text),
+                    Segment::Variable(var) => {
+                        let (text, color) = self.resolve_variable(*var, data, colors);
+                        span(text).color_maybe(color)
+                    }
+                    Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
+                };
+                if let Some(font) = font {
+                    s.font(font)
+                } else {
+                    s
                 }
-                Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
             })
             .collect();
+
         rich_text(spans)
     }
 
