@@ -197,12 +197,16 @@ impl cosmic::Application for SysInfo {
                 .on_toggle(Message::ToggleIncludeSwapWithRam),
         ];
 
-        let use_mono_font_toggler = cosmic::iced_widget::row![
-            cosmic::widget::text(fl!("use-mono-font-toggle")),
-            cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
-            cosmic::widget::toggler(self.config.use_mono_font)
-                .on_toggle(Message::ToggleUseMonoFont),
-        ];
+        let use_mono_font_toggler = cosmic::iced_widget::column![
+            cosmic::iced_widget::row![
+                cosmic::widget::text(fl!("use-mono-font-toggle")),
+                cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
+                cosmic::widget::toggler(self.config.use_mono_font)
+                    .on_toggle(Message::ToggleUseMonoFont),
+            ],
+            cosmic::widget::text::caption(fl!("use-mono-font-helper")).size(11.0),
+        ]
+        .spacing(4);
 
         let template_input = cosmic::iced_widget::column![
             cosmic::widget::text::body(fl!("template-label")),
