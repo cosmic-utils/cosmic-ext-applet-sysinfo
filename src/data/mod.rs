@@ -301,20 +301,24 @@ impl Data {
         None
     }
 
-    /// Fetch a public IP address using curl.
+    /// Fetch a public IP address from icanhazip.com.
+    ///
     fn fetch_public_ip(version: IpVersion) -> Option<String> {
-        let ip_flag = match version {
-            IpVersion::V4 => "-4",
-            IpVersion::V6 => "-6",
+        // `attohttpc` cannot force a specific IP version on the resolver, so we
+        // rely on the version-specific subdomains exposed by icanhazip.com.
+        let url = match version {
+            IpVersion::V4 => "https://ipv4.icanhazip.com",
+            IpVersion::V6 => "https://ipv6.icanhazip.com",
         };
-        let output = Command::new("curl")
-            .args([ip_flag, "-sf", "--max-time", "5", "https://icanhazip.com"])
-            .output()
+
+        let response = attohttpc::get(url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .ok()?
+            .error_for_status()
             .ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let ip = response.text().ok()?.trim().to_string();
+
         (!ip.is_empty()).then_some(ip)
     }
 
