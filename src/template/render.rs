@@ -24,7 +24,7 @@ impl Template {
             .iter()
             .map(|segment| {
                 let s = match segment {
-                    Segment::Literal(text) => span(&**text),
+                    Segment::Literal(text) => span(text.as_ref()),
                     Segment::Variable(var) => {
                         let (text, color) = self.resolve_variable(*var, data, colors);
                         span(text).color_maybe(color)
