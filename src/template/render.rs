@@ -21,7 +21,7 @@ impl Template {
             .segments
             .iter()
             .map(|segment| match segment {
-                Segment::Literal(text) => span(&**text),
+                Segment::Literal(text) => span(text.as_ref()),
                 Segment::Variable(var) => {
                     let (text, color) = self.resolve_variable(*var, data, colors);
                     span(text).font(cosmic::font::mono()).color_maybe(color)
