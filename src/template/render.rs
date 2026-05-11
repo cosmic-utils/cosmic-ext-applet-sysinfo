@@ -90,6 +90,13 @@ impl Template {
                 Some(ip) => (ip.into(), None),
                 None => ("--".into(), None),
             },
+            Variable::NpuUsage => match data.npu_usage {
+                Some(v) => (
+                    format!("{v:>2}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
+                ),
+                None => ("--%".into(), None),
+            },
         }
     }
 }

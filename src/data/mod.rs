@@ -47,6 +47,7 @@ pub(crate) struct Data {
     pub(crate) cpu_temp: Option<f32>,
     pub(crate) gpu_temp: Option<f32>,
     pub(crate) gpu_usage: Option<u64>,
+    pub(crate) npu_usage: Option<u64>,
     pub(crate) public_ipv4: Option<String>,
     pub(crate) public_ipv6: Option<String>,
 }
@@ -80,6 +81,7 @@ impl Data {
             cpu_temp: None,
             gpu_temp: None,
             gpu_usage: None,
+            npu_usage: None,
             public_ipv4: None,
             public_ipv6: None,
         }
@@ -96,6 +98,7 @@ impl Data {
         let needs_gpu_usage = requires.contains(Variable::GpuUsage);
         let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
+        let needs_npu_usage = requires.contains(Variable::NpuUsage);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -235,6 +238,11 @@ impl Data {
         if !needs_pub_ipv6 {
             self.public_ipv6 = None;
         }
+
+        // NPU
+        if needs_npu_usage {
+            self.npu_usage = Self::find_npu_usage_sysfs();
+        }
     }
 
     fn detect_physical_interfaces(config: &SysInfoConfig) -> Vec<String> {
@@ -293,6 +301,19 @@ impl Data {
         let entries = fs::read_dir("/sys/class/drm").ok()?;
         for entry in entries.flatten() {
             if let Ok(contents) = fs::read_to_string(entry.path().join("device/gpu_busy_percent"))
+                && let Ok(value) = contents.trim().parse()
+            {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    fn find_npu_usage_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/accel").ok()?;
+        for entry in entries.flatten() {
+            println!("{:?}", entry.path().join("device"));
+            if let Ok(contents) = fs::read_to_string(entry.path().join("device/npu_busy_time_us"))
                 && let Ok(value) = contents.trim().parse()
             {
                 return Some(value);
