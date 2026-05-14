@@ -204,7 +204,7 @@ impl cosmic::Application for SysInfo {
                 cosmic::widget::toggler(self.config.use_mono_font)
                     .on_toggle(Message::ToggleUseMonoFont),
             ],
-            cosmic::widget::text::caption(fl!("use-mono-font-helper")).size(11.0),
+            cosmic::widget::text::caption(fl!("use-mono-font-helper")),
         ]
         .spacing(4);
 
