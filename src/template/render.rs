@@ -16,6 +16,7 @@ impl Template {
         &'a self,
         data: &'a Data,
         colors: &applet::ThemeColors,
+        use_mono_font: bool,
     ) -> text::Rich<'a, applet::Message, Theme> {
         let spans: Vec<_> = self
             .segments
@@ -24,11 +25,19 @@ impl Template {
                 Segment::Literal(text) => span(text.as_ref()),
                 Segment::Variable(var) => {
                     let (text, color) = self.resolve_variable(*var, data, colors);
-                    span(text).font(cosmic::font::mono()).color_maybe(color)
+                    span(text).color_maybe(color)
                 }
                 Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
             })
+            .map(|segment| {
+                if use_mono_font {
+                    segment.font(cosmic::font::mono())
+                } else {
+                    segment
+                }
+            })
             .collect();
+
         rich_text(spans)
     }
 
