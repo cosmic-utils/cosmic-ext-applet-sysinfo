@@ -159,7 +159,7 @@ impl cosmic::Application for SysInfo {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_use_mono_font(handler, value)
                 {
-                    tracing::error!("{error}")
+                    tracing::error!("failed to toggle `use_mono_font`: {error}")
                 }
             }
             Message::TemplateChanged(value) => {
