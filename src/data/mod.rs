@@ -32,7 +32,6 @@ pub(crate) struct Npu {
     last_npu_busy_time_us: Option<u64>,
     last_diff_us: Option<u64>,
     max_diff_us: Option<u64>,
-    npu_busy_time_diff_read: Option<u64>,
     max_npu_busy_time_read: Option<u64>,
 
     pub(crate) npu_usage: Option<u64>,
@@ -45,7 +44,6 @@ impl Npu {
             last_npu_busy_time_us: None,
             last_diff_us: None,
             max_diff_us: None,
-            npu_busy_time_diff_read: None,
             max_npu_busy_time_read: None,
             npu_usage: None,
             npu_frequency: None,
@@ -271,20 +269,12 @@ impl Data {
             if let Some(last_read) = self.npu.last_npu_busy_time_us {
                 let read_diff_us = current_read_us - last_read;
 
-                println!("last npu busy time in us: {last_read}");
-                println!("current read: {current_read_us}");
-                println!("read_diff_us: {read_diff_us}");
-
                 if let Some(last_diff_us) = self.npu.last_diff_us {
-                    println!("last_diff_us: {}", last_diff_us);
-
                     if let Some(max_diff_us) = self.npu.max_diff_us {
-                        println!("max_diff_us: {}", max_diff_us);
                         if read_diff_us > max_diff_us && read_diff_us > 0 {
                             self.npu.max_diff_us = Some(read_diff_us)
                         }
                         let usage_percentage = (last_diff_us * 100) / max_diff_us;
-                        println!("usage_percentage: {usage_percentage}");
                         self.npu.npu_usage = Some(usage_percentage)
                     } else {
                         if read_diff_us > 0 {
@@ -302,7 +292,6 @@ impl Data {
             }
 
             self.npu.last_npu_busy_time_us = Some(current_read_us);
-            println!();
         }
 
         if needs_npu_frequency && let Some(current_npu_frequency) = Self::find_npu_frequency_sysfs()
