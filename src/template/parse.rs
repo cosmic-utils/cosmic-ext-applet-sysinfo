@@ -81,6 +81,7 @@ impl FromStr for Variable {
             "pub_ipv4" => Ok(Self::PublicIpv4),
             "pub_ipv6" => Ok(Self::PublicIpv6),
             "npu_usage" => Ok(Self::NpuUsage),
+            "npu_frequency" => Ok(Self::NpuFrequency),
             _ => Err(()),
         }
     }
