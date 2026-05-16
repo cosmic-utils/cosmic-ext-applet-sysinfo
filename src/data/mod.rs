@@ -123,7 +123,7 @@ impl Data {
         let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
         let needs_npu_usage = requires.contains(Variable::NpuUsage);
-        let needs_npu_frequency = requires.contains(Variable::NpuUsage);
+        let needs_npu_frequency = requires.contains(Variable::NpuFrequency);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
