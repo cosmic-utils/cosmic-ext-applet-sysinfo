@@ -45,7 +45,7 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
 | `{gpu_usage}` | GPU usage % | `3%` |
 | `{npu_usage}` | NPU usage % |`43%` | 
-| `{npu_frequency}` | NPU frequency mhz |`1600mhz` | 
+| `{npu_frequency}` | NPU frequency MHz |`1600MHz` | 
 | `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
 | `{ul_speed}` | Upload speed in MB/s (2 decimals) | `0.45` |
 | `{pub_ipv4}` | Public IPv4 address | `203.0.113.1` |

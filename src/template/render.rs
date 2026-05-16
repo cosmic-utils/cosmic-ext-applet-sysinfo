@@ -107,7 +107,7 @@ impl Template {
                 None => ("--%".into(), None),
             },
             Variable::NpuFrequency => match data.npu.npu_frequency {
-                Some(f) => (format!("{f:>2}mhz").into(), None),
+                Some(f) => (format!("{f:>2}MHz").into(), None),
                 None => ("--".into(), None),
             },
         }
