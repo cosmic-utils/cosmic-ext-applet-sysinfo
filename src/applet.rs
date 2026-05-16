@@ -62,6 +62,7 @@ pub(crate) enum Message {
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
+    ToggleUseMonoFont(bool),
     TemplateChanged(String),
 }
 
@@ -154,6 +155,13 @@ impl cosmic::Application for SysInfo {
                     tracing::error!("{error}")
                 }
             }
+            Message::ToggleUseMonoFont(value) => {
+                if let Some(handler) = &self.config_handler
+                    && let Err(error) = self.config.set_use_mono_font(handler, value)
+                {
+                    tracing::error!("failed to toggle `use_mono_font`: {error}")
+                }
+            }
             Message::TemplateChanged(value) => {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_template(handler, value)
@@ -170,7 +178,9 @@ impl cosmic::Application for SysInfo {
     fn view(&self) -> cosmic::Element<'_, Message> {
         let colors = ThemeColors::from_active_theme();
 
-        let content = self.template.render(&self.data, &colors);
+        let content = self
+            .template
+            .render(&self.data, &colors, self.config.use_mono_font);
 
         let button = cosmic::widget::button::custom(content)
             .class(cosmic::theme::Button::AppletIcon)
@@ -187,6 +197,17 @@ impl cosmic::Application for SysInfo {
                 .on_toggle(Message::ToggleIncludeSwapWithRam),
         ];
 
+        let use_mono_font_toggler = cosmic::iced_widget::column![
+            cosmic::iced_widget::row![
+                cosmic::widget::text(fl!("use-mono-font-toggle")),
+                cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
+                cosmic::widget::toggler(self.config.use_mono_font)
+                    .on_toggle(Message::ToggleUseMonoFont),
+            ],
+            cosmic::widget::text::caption(fl!("use-mono-font-helper")),
+        ]
+        .spacing(4);
+
         let template_input = cosmic::iced_widget::column![
             cosmic::widget::text::body(fl!("template-label")),
             cosmic::widget::text_input("", &self.config.template)
@@ -196,6 +217,7 @@ impl cosmic::Application for SysInfo {
 
         let data = cosmic::iced_widget::column![
             cosmic::applet::padded_control(include_swap_in_ram_toggler),
+            cosmic::applet::padded_control(use_mono_font_toggler),
             cosmic::applet::padded_control(template_input),
         ]
         .padding([16, 0]);
