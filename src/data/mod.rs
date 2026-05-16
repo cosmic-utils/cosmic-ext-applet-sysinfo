@@ -29,24 +29,67 @@ enum IpVersion {
 }
 
 pub(crate) struct Npu {
-    last_npu_busy_time_us: Option<u64>,
-    last_diff_us: Option<u64>,
-    max_diff_us: Option<u64>,
-    max_npu_busy_time_read: Option<u64>,
+    last_busy_time: Option<u64>,
+    last_busy_time_diff: Option<u64>,
+    max_busy_time_diff: Option<u64>,
+    max_busy_time: Option<u64>,
 
-    pub(crate) npu_usage: Option<u64>,
-    pub(crate) npu_frequency: Option<u64>,
+    pub(crate) usage: Option<u64>,
+    pub(crate) frequency: Option<u64>,
 }
 
 impl Npu {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            last_npu_busy_time_us: None,
-            last_diff_us: None,
-            max_diff_us: None,
-            max_npu_busy_time_read: None,
-            npu_usage: None,
-            npu_frequency: None,
+            last_busy_time: None,
+            last_busy_time_diff: None,
+            max_busy_time_diff: None,
+            max_busy_time: None,
+            usage: None,
+            frequency: None,
+        }
+    }
+
+    fn refresh_usage(&mut self, current_read_us: Option<u64>) {
+        if let Some(current_busy_time) = current_read_us {
+            match self.last_busy_time {
+                Some(last_busy_time) => {
+                    let current_diff = current_busy_time - last_busy_time;
+
+                    if let Some(last_diff) = self.last_busy_time_diff {
+                        match self.max_busy_time_diff {
+                            Some(max_diff) => {
+                                if current_diff > max_diff && current_diff > 0 {
+                                    self.max_busy_time_diff = Some(current_diff)
+                                }
+                                let usage_percentage = (last_diff * 100) / max_diff;
+                                self.usage = Some(usage_percentage)
+                            }
+                            None => {
+                                if current_diff > 0 {
+                                    self.max_busy_time_diff = Some(current_diff)
+                                } else {
+                                    self.usage = Some(0)
+                                }
+                            }
+                        }
+                    }
+
+                    self.last_busy_time_diff = Some(current_diff);
+                }
+                None => {
+                    self.max_busy_time = Some(current_busy_time);
+                    self.usage = Some(0)
+                }
+            }
+
+            self.last_busy_time = Some(current_busy_time);
+        }
+    }
+
+    fn refresh_frequency(&mut self, current_read: Option<u64>) {
+        if let Some(current_npu_frequency) = current_read {
+            self.frequency = Some(current_npu_frequency)
         }
     }
 }
@@ -265,38 +308,13 @@ impl Data {
         }
 
         // NPU
-        if needs_npu_usage && let Some(current_read_us) = Self::find_npu_busy_time_us() {
-            if let Some(last_read) = self.npu.last_npu_busy_time_us {
-                let read_diff_us = current_read_us - last_read;
-
-                if let Some(last_diff_us) = self.npu.last_diff_us {
-                    if let Some(max_diff_us) = self.npu.max_diff_us {
-                        if read_diff_us > max_diff_us && read_diff_us > 0 {
-                            self.npu.max_diff_us = Some(read_diff_us)
-                        }
-                        let usage_percentage = (last_diff_us * 100) / max_diff_us;
-                        self.npu.npu_usage = Some(usage_percentage)
-                    } else {
-                        if read_diff_us > 0 {
-                            self.npu.max_diff_us = Some(read_diff_us)
-                        } else {
-                            self.npu.npu_usage = Some(0)
-                        }
-                    }
-                }
-
-                self.npu.last_diff_us = Some(read_diff_us);
-            } else {
-                self.npu.max_npu_busy_time_read = Some(current_read_us);
-                self.npu.npu_usage = Some(0)
-            }
-
-            self.npu.last_npu_busy_time_us = Some(current_read_us);
+        if needs_npu_usage {
+            self.npu.refresh_usage(Self::find_npu_busy_time_us_sysfs());
         }
 
-        if needs_npu_frequency && let Some(current_npu_frequency) = Self::find_npu_frequency_sysfs()
-        {
-            self.npu.npu_frequency = Some(current_npu_frequency)
+        if needs_npu_frequency {
+            self.npu
+                .refresh_frequency(Self::find_npu_frequency_mhz_sysfs());
         }
     }
 
@@ -364,7 +382,7 @@ impl Data {
         None
     }
 
-    fn find_npu_busy_time_us() -> Option<u64> {
+    fn find_npu_busy_time_us_sysfs() -> Option<u64> {
         let entries = fs::read_dir("/sys/class/accel").ok()?;
         for entry in entries.flatten() {
             if let Ok(contents) = fs::read_to_string(entry.path().join("device/npu_busy_time_us"))
@@ -376,7 +394,7 @@ impl Data {
         None
     }
 
-    fn find_npu_frequency_sysfs() -> Option<u64> {
+    fn find_npu_frequency_mhz_sysfs() -> Option<u64> {
         let entries = fs::read_dir("/sys/class/accel").ok()?;
         for entry in entries.flatten() {
             if let Ok(contents) =
