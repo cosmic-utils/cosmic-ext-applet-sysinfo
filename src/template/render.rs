@@ -99,6 +99,17 @@ impl Template {
                 Some(ip) => (ip.into(), None),
                 None => ("--".into(), None),
             },
+            Variable::NpuUsage => match data.npu.usage {
+                Some(v) => (
+                    format!("{v:>2}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
+                ),
+                None => ("--%".into(), None),
+            },
+            Variable::NpuFrequency => match data.npu.frequency {
+                Some(f) => (format!("{f:>2}MHz").into(), None),
+                None => ("--".into(), None),
+            },
         }
     }
 }

@@ -28,6 +28,72 @@ enum IpVersion {
     V6,
 }
 
+pub(crate) struct Npu {
+    last_busy_time: Option<u64>,
+    last_busy_time_diff: Option<u64>,
+    max_busy_time_diff: Option<u64>,
+    max_busy_time: Option<u64>,
+
+    pub(crate) usage: Option<u64>,
+    pub(crate) frequency: Option<u64>,
+}
+
+impl Npu {
+    fn new() -> Self {
+        Self {
+            last_busy_time: None,
+            last_busy_time_diff: None,
+            max_busy_time_diff: None,
+            max_busy_time: None,
+            usage: None,
+            frequency: None,
+        }
+    }
+
+    fn refresh_usage(&mut self, current_read_us: Option<u64>) {
+        if let Some(current_busy_time) = current_read_us {
+            match self.last_busy_time {
+                Some(last_busy_time) => {
+                    let current_diff = current_busy_time - last_busy_time;
+
+                    if let Some(last_diff) = self.last_busy_time_diff {
+                        match self.max_busy_time_diff {
+                            Some(max_diff) => {
+                                if current_diff > max_diff && current_diff > 0 {
+                                    self.max_busy_time_diff = Some(current_diff)
+                                }
+                                let usage_percentage = (last_diff * 100) / max_diff;
+                                self.usage = Some(usage_percentage)
+                            }
+                            None => {
+                                if current_diff > 0 {
+                                    self.max_busy_time_diff = Some(current_diff)
+                                } else {
+                                    self.usage = Some(0)
+                                }
+                            }
+                        }
+                    }
+
+                    self.last_busy_time_diff = Some(current_diff);
+                }
+                None => {
+                    self.max_busy_time = Some(current_busy_time);
+                    self.usage = Some(0)
+                }
+            }
+
+            self.last_busy_time = Some(current_busy_time);
+        }
+    }
+
+    fn refresh_frequency(&mut self, current_read: Option<u64>) {
+        if let Some(current_npu_frequency) = current_read {
+            self.frequency = Some(current_npu_frequency)
+        }
+    }
+}
+
 /// The data coming from various sources (mostly the `sysinfo` crate)
 ///
 /// Manages each source, and stores the values extracted from them
@@ -40,6 +106,7 @@ pub(crate) struct Data {
     next_ip_fetch: Instant,
     ip_backoff: ExponentialBackoff,
 
+    pub(crate) npu: Npu,
     pub(crate) cpu_usage: Option<f32>,
     pub(crate) ram_usage: Option<u64>,
     pub(crate) download_speed: Option<f64>,
@@ -57,6 +124,7 @@ impl Data {
         let networks = Networks::new_with_refreshed_list();
         let components = Components::new_with_refreshed_list();
         let physical_interfaces = Self::detect_physical_interfaces(config);
+        let npu_data = Npu::new();
 
         let ip_backoff = ExponentialBackoff {
             max_interval: IP_REFRESH_INTERVAL,
@@ -80,6 +148,7 @@ impl Data {
             cpu_temp: None,
             gpu_temp: None,
             gpu_usage: None,
+            npu: npu_data,
             public_ipv4: None,
             public_ipv6: None,
         }
@@ -96,6 +165,8 @@ impl Data {
         let needs_gpu_usage = requires.contains(Variable::GpuUsage);
         let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
+        let needs_npu_usage = requires.contains(Variable::NpuUsage);
+        let needs_npu_frequency = requires.contains(Variable::NpuFrequency);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -235,6 +306,16 @@ impl Data {
         if !needs_pub_ipv6 {
             self.public_ipv6 = None;
         }
+
+        // NPU
+        if needs_npu_usage {
+            self.npu.refresh_usage(Self::find_npu_busy_time_us_sysfs());
+        }
+
+        if needs_npu_frequency {
+            self.npu
+                .refresh_frequency(Self::find_npu_frequency_mhz_sysfs());
+        }
     }
 
     fn detect_physical_interfaces(config: &SysInfoConfig) -> Vec<String> {
@@ -293,6 +374,31 @@ impl Data {
         let entries = fs::read_dir("/sys/class/drm").ok()?;
         for entry in entries.flatten() {
             if let Ok(contents) = fs::read_to_string(entry.path().join("device/gpu_busy_percent"))
+                && let Ok(value) = contents.trim().parse()
+            {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    fn find_npu_busy_time_us_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/accel").ok()?;
+        for entry in entries.flatten() {
+            if let Ok(contents) = fs::read_to_string(entry.path().join("device/npu_busy_time_us"))
+                && let Ok(value) = contents.trim().parse()
+            {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    fn find_npu_frequency_mhz_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/accel").ok()?;
+        for entry in entries.flatten() {
+            if let Ok(contents) =
+                fs::read_to_string(entry.path().join("device/npu_current_frequency_mhz"))
                 && let Ok(value) = contents.trim().parse()
             {
                 return Some(value);
