@@ -106,7 +106,7 @@ impl cosmic::Application for SysInfo {
         cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
     }
 
-    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+    fn style(&self) -> Option<cosmic::iced::theme::Style> {
         Some(cosmic::applet::style())
     }
 
@@ -190,37 +190,40 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view_window(&self, _id: cosmic::iced::window::Id) -> cosmic::Element<'_, Message> {
-        let include_swap_in_ram_toggler = cosmic::iced_widget::row![
-            cosmic::widget::text(fl!("include-swap-in-ram-toggle")),
-            cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
-            cosmic::widget::toggler(self.config.include_swap_in_ram)
-                .on_toggle(Message::ToggleIncludeSwapWithRam),
-        ];
+        let include_swap_in_ram_toggler = cosmic::widget::row::with_capacity(3)
+            .push(cosmic::widget::text(fl!("include-swap-in-ram-toggle")))
+            .push(cosmic::widget::space::horizontal())
+            .push(
+                cosmic::widget::toggler(self.config.include_swap_in_ram)
+                    .on_toggle(Message::ToggleIncludeSwapWithRam),
+            );
 
-        let use_mono_font_toggler = cosmic::iced_widget::column![
-            cosmic::iced_widget::row![
-                cosmic::widget::text(fl!("use-mono-font-toggle")),
-                cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
-                cosmic::widget::toggler(self.config.use_mono_font)
-                    .on_toggle(Message::ToggleUseMonoFont),
-            ],
-            cosmic::widget::text::caption(fl!("use-mono-font-helper")),
-        ]
-        .spacing(4);
+        let use_mono_font_toggler = cosmic::widget::column::with_capacity(2)
+            .push(
+                cosmic::widget::row::with_capacity(3)
+                    .push(cosmic::widget::text(fl!("use-mono-font-toggle")))
+                    .push(cosmic::widget::space::horizontal())
+                    .push(
+                        cosmic::widget::toggler(self.config.use_mono_font)
+                            .on_toggle(Message::ToggleUseMonoFont),
+                    ),
+            )
+            .push(cosmic::widget::text::caption(fl!("use-mono-font-helper")))
+            .spacing(4);
 
-        let template_input = cosmic::iced_widget::column![
-            cosmic::widget::text::body(fl!("template-label")),
-            cosmic::widget::text_input("", &self.config.template)
-                .on_input(Message::TemplateChanged),
-        ]
-        .spacing(4);
+        let template_input = cosmic::widget::column::with_capacity(2)
+            .push(cosmic::widget::text::body(fl!("template-label")))
+            .push(
+                cosmic::widget::text_input("", &self.config.template)
+                    .on_input(Message::TemplateChanged),
+            )
+            .spacing(4);
 
-        let data = cosmic::iced_widget::column![
-            cosmic::applet::padded_control(include_swap_in_ram_toggler),
-            cosmic::applet::padded_control(use_mono_font_toggler),
-            cosmic::applet::padded_control(template_input),
-        ]
-        .padding([16, 0]);
+        let data = cosmic::widget::column::with_capacity(3)
+            .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
+            .push(cosmic::applet::padded_control(use_mono_font_toggler))
+            .push(cosmic::applet::padded_control(template_input))
+            .padding([16, 0]);
 
         self.core
             .applet
