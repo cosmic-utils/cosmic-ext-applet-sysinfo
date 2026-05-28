@@ -8,6 +8,7 @@
   <update_contact>rwxroot@proton.me</update_contact>
   <name>System Monitor</name>
   <name xml:lang="cs">Monitor systému</name>
+  <name xml:lang="pl">Monitor systemu</name>
   <name xml:lang="uk">Системний монітор</name>
   <url type="homepage">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo</url>
   <url type="bugtracker">https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/issues</url>
@@ -19,10 +20,12 @@
   </branding>
   <summary>Realtime system resource monitoring applet for COSMIC</summary>
   <summary xml:lang="cs">Applet pro sledování systémových prostředků v reálném čase pro COSMIC</summary>
+  <summary xml:lang="pl">Applet do śledzenia wykorzystania zasobów dla COSMIC</summary>
   <summary xml:lang="uk">Віджет для моніторингу системних ресурсів COSMIC</summary>
   <description>
     <p>Monitor your system's CPU, RAM, GPU, network usage as well as CPU and GPU temperature directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
     <p xml:lang="cs">Sledujte využití CPU, paměti a sítě přímo z panelu COSMIC. Získejte okamžitý přehled o výkonu systému díky přehledným a snadno čitelným ukazatelům.</p>
+    <p xml:lang="pl">Śledź użycie CPU, GPU, RAMu, Sieci oraz temperatur CPU i GPU bezpośrenio z panelu COSMIC. Na jeden rzut oka zobacz wydajność systemu.</p>
     <p xml:lang="uk">Слідкуйте за CPU, пам'яттю та мережею з панелі COSMIC. Отримуйте швидкий і зрозумілий огляд продуктивності системи.</p>
   </description>
   <icon type="stock">io.github.cosmic_utils.sysinfo-applet-symbolic.svg</icon>
@@ -32,12 +35,14 @@
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_1.png</image>
       <caption>System metrics displayed in the COSMIC panel</caption>
       <caption xml:lang="cs">Systémové metriky zobrazené v panelu COSMIC</caption>
+      <caption xml:lang="pl">Metryki systemu pokazane w panelu COSMIC</caption>
       <caption xml:lang="uk">Системні показники, відображені на панелі COSMIC</caption>
     </screenshot>
     <screenshot>
       <image>https://raw.githubusercontent.com/cosmic-utils/cosmic-ext-applet-sysinfo/main/data/applet_screenshot_2.png</image>
       <caption>Applet configuration view</caption>
       <caption xml:lang="cs">Zobrazení konfigurace appletu</caption>
+      <caption xml:lang="pl">Pokazany widok konfiguracji apletu</caption>
       <caption xml:lang="uk">Вигляд налаштувань аплету</caption>
     </screenshot>
   </screenshots>
@@ -45,16 +50,19 @@
     <release version="0.3.0" date="2026-03-23">
       <description>
         <p>Stabilise applet layout with zero-padded format strings</p>
+        <p xml:lang="pl">Stabilizacja wyglądu apletu wypełniaczem by się nie rozszerzało</p>
       </description>
     </release>
     <release version="0.2.0" date="2026-03-20">
       <description>
         <p>Configurable display template with colour-coded severity and support for all system metrics</p>
+        <p xml:lang="pl">Konfigurowalne wyświetlanie z kolorami pokazującymi wagę sytuacji i wsparcie dla wszystkich metryk systemu</p>
       </description>
     </release>
     <release version="0.1.0" date="2026-03-03">
       <description>
         <p>Initial release with real-time CPU, RAM, and network monitoring for the COSMIC panel</p>
+        <p xml:lang="pl">Pierwsze wydanie z CPU, RAMem i monitorowaniem sieci w czasie rzeczywistym dla panelu COSMIC</p>
       </description>
     </release>
   </releases>
