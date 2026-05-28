@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use cosmic::iced::Color;
+use cosmic::iced::{Color, Rectangle, Size, event::listen_with};
 use tracing::{debug, trace};
 
 use crate::{
@@ -47,6 +47,7 @@ struct SysInfo {
     config_handler: Option<cosmic::cosmic_config::Config>,
     data: data::Data,
     template: template::Template,
+    size: Size,
 }
 
 impl SysInfo {
@@ -56,8 +57,9 @@ impl SysInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Message {
+    Size(Size),
     Tick,
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
@@ -89,6 +91,10 @@ impl cosmic::Application for SysInfo {
                 config_handler: flags.config_handler,
                 data,
                 template,
+                size: Size {
+                    width: 10.,
+                    height: 10.,
+                },
             },
             cosmic::task::none(),
         )
@@ -103,7 +109,21 @@ impl cosmic::Application for SysInfo {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Message> {
-        cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
+        cosmic::iced::Subscription::batch([
+            cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
+            listen_with(|event, _status, id| {
+                if let cosmic::iced::Event::Window(
+                    cosmic::iced::window::Event::Resized(size)
+                    | cosmic::iced::window::Event::Opened { position: _, size },
+                ) = event
+                    && id == cosmic::iced::window::Id::RESERVED
+                {
+                    Some(Message::Size(size))
+                } else {
+                    None
+                }
+            }),
+        ])
     }
 
     fn style(&self) -> Option<cosmic::iced::theme::Style> {
@@ -133,13 +153,19 @@ impl cosmic::Application for SysInfo {
                 let new_id = cosmic::iced::window::Id::unique();
                 self.popup.replace(new_id);
 
-                let popup_settings = self.core.applet.get_popup_settings(
+                let mut popup_settings = self.core.applet.get_popup_settings(
                     self.core.main_window_id().unwrap(),
                     new_id,
                     None,
                     None,
                     None,
                 );
+                popup_settings.positioner.anchor_rect = Rectangle::<i32> {
+                    x: 0,
+                    y: 0,
+                    width: self.size.width as i32,
+                    height: self.size.height as i32,
+                };
 
                 return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
                     popup_settings,
@@ -169,6 +195,9 @@ impl cosmic::Application for SysInfo {
                     tracing::error!("failed to set template: {error}")
                 }
                 self.update_template_cache();
+            }
+            Message::Size(size) => {
+                self.size = size;
             }
         }
 
