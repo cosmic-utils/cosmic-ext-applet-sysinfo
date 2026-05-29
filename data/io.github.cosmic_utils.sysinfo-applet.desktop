@@ -1,9 +1,11 @@
 [Desktop Entry]
 Name=Simple System Monitor
 Name[cs]=Jednoduchý monitor systému
+Name[pl]=Prosty monitor systemu
 Name[uk]=Простий системний монітор
 Keywords=System;Monitor;
 Keywords[cs]=Systém;Sledování;Monitor;
+Keywords[pl]=System;Monitor;Użycie;
 Keywords[uk]=Системний;Монітор;Ресурси;
 Categories=System;Monitor;
 
