@@ -1,6 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
-use cosmic::iced::Color;
+use cosmic::iced::{Color, Rectangle, Size, event::listen_with};
 use tracing::{debug, trace};
 
 use crate::{
@@ -47,6 +47,7 @@ struct SysInfo {
     config_handler: Option<cosmic::cosmic_config::Config>,
     data: data::Data,
     template: template::Template,
+    size: Size,
 }
 
 impl SysInfo {
@@ -56,8 +57,9 @@ impl SysInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Message {
+    Size(Size),
     Tick,
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
@@ -89,6 +91,10 @@ impl cosmic::Application for SysInfo {
                 config_handler: flags.config_handler,
                 data,
                 template,
+                size: Size {
+                    width: 10.,
+                    height: 10.,
+                },
             },
             cosmic::task::none(),
         )
@@ -103,10 +109,24 @@ impl cosmic::Application for SysInfo {
     }
 
     fn subscription(&self) -> cosmic::iced::Subscription<Message> {
-        cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
+        cosmic::iced::Subscription::batch([
+            cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
+            listen_with(|event, _status, id| {
+                if let cosmic::iced::Event::Window(
+                    cosmic::iced::window::Event::Resized(size)
+                    | cosmic::iced::window::Event::Opened { position: _, size },
+                ) = event
+                    && id == cosmic::iced::window::Id::RESERVED
+                {
+                    Some(Message::Size(size))
+                } else {
+                    None
+                }
+            }),
+        ])
     }
 
-    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+    fn style(&self) -> Option<cosmic::iced::theme::Style> {
         Some(cosmic::applet::style())
     }
 
@@ -133,13 +153,19 @@ impl cosmic::Application for SysInfo {
                 let new_id = cosmic::iced::window::Id::unique();
                 self.popup.replace(new_id);
 
-                let popup_settings = self.core.applet.get_popup_settings(
+                let mut popup_settings = self.core.applet.get_popup_settings(
                     self.core.main_window_id().unwrap(),
                     new_id,
                     None,
                     None,
                     None,
                 );
+                popup_settings.positioner.anchor_rect = Rectangle::<i32> {
+                    x: 0,
+                    y: 0,
+                    width: self.size.width as i32,
+                    height: self.size.height as i32,
+                };
 
                 return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
                     popup_settings,
@@ -170,6 +196,9 @@ impl cosmic::Application for SysInfo {
                 }
                 self.update_template_cache();
             }
+            Message::Size(size) => {
+                self.size = size;
+            }
         }
 
         cosmic::task::none()
@@ -190,37 +219,40 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view_window(&self, _id: cosmic::iced::window::Id) -> cosmic::Element<'_, Message> {
-        let include_swap_in_ram_toggler = cosmic::iced_widget::row![
-            cosmic::widget::text(fl!("include-swap-in-ram-toggle")),
-            cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
-            cosmic::widget::toggler(self.config.include_swap_in_ram)
-                .on_toggle(Message::ToggleIncludeSwapWithRam),
-        ];
+        let include_swap_in_ram_toggler = cosmic::widget::row::with_capacity(3)
+            .push(cosmic::widget::text(fl!("include-swap-in-ram-toggle")))
+            .push(cosmic::widget::space::horizontal())
+            .push(
+                cosmic::widget::toggler(self.config.include_swap_in_ram)
+                    .on_toggle(Message::ToggleIncludeSwapWithRam),
+            );
 
-        let use_mono_font_toggler = cosmic::iced_widget::column![
-            cosmic::iced_widget::row![
-                cosmic::widget::text(fl!("use-mono-font-toggle")),
-                cosmic::widget::Space::with_width(cosmic::iced::Length::Fill),
-                cosmic::widget::toggler(self.config.use_mono_font)
-                    .on_toggle(Message::ToggleUseMonoFont),
-            ],
-            cosmic::widget::text::caption(fl!("use-mono-font-helper")),
-        ]
-        .spacing(4);
+        let use_mono_font_toggler = cosmic::widget::column::with_capacity(2)
+            .push(
+                cosmic::widget::row::with_capacity(3)
+                    .push(cosmic::widget::text(fl!("use-mono-font-toggle")))
+                    .push(cosmic::widget::space::horizontal())
+                    .push(
+                        cosmic::widget::toggler(self.config.use_mono_font)
+                            .on_toggle(Message::ToggleUseMonoFont),
+                    ),
+            )
+            .push(cosmic::widget::text::caption(fl!("use-mono-font-helper")))
+            .spacing(4);
 
-        let template_input = cosmic::iced_widget::column![
-            cosmic::widget::text::body(fl!("template-label")),
-            cosmic::widget::text_input("", &self.config.template)
-                .on_input(Message::TemplateChanged),
-        ]
-        .spacing(4);
+        let template_input = cosmic::widget::column::with_capacity(2)
+            .push(cosmic::widget::text::body(fl!("template-label")))
+            .push(
+                cosmic::widget::text_input("", &self.config.template)
+                    .on_input(Message::TemplateChanged),
+            )
+            .spacing(4);
 
-        let data = cosmic::iced_widget::column![
-            cosmic::applet::padded_control(include_swap_in_ram_toggler),
-            cosmic::applet::padded_control(use_mono_font_toggler),
-            cosmic::applet::padded_control(template_input),
-        ]
-        .padding([16, 0]);
+        let data = cosmic::widget::column::with_capacity(3)
+            .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
+            .push(cosmic::applet::padded_control(use_mono_font_toggler))
+            .push(cosmic::applet::padded_control(template_input))
+            .padding([16, 0]);
 
         self.core
             .applet

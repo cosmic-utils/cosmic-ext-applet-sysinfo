@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
-use cosmic::{
-    iced::Color,
-    iced_widget::{rich_text, span, text},
+use cosmic::iced::{
+    Color,
+    widget::{rich_text, span, text},
 };
 
 use crate::{
@@ -17,7 +17,7 @@ impl Template {
         data: &'a Data,
         colors: &applet::ThemeColors,
         use_mono_font: bool,
-    ) -> text::Rich<'a, applet::Message, Theme> {
+    ) -> text::Rich<'a, (), applet::Message, Theme> {
         let spans: Vec<_> = self
             .segments
             .iter()
