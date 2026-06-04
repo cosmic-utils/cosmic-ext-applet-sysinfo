@@ -17,7 +17,7 @@
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** — reads from sysfs (`gpu_busy_percent`), falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
-- **NPU frequency** — reads from sysfs (`npu_currenty_frequency_mhz`). 
+- **NPU frequency** — reads from sysfs (`npu_currenty_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
 - **Color-coded values** — metrics change color (normal → yellow → red) based on severity using COSMIC theme colors
 
@@ -44,8 +44,8 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{cpu_temp}` | CPU temperature in °C | `51°C` |
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
 | `{gpu_usage}` | GPU usage % | `3%` |
-| `{npu_usage}` | NPU usage % |`43%` | 
-| `{npu_frequency}` | NPU frequency MHz |`1600MHz` | 
+| `{npu_usage}` | NPU usage % |`43%` |
+| `{npu_frequency}` | NPU frequency MHz |`1600MHz` |
 | `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
 | `{ul_speed}` | Upload speed in MB/s (2 decimals) | `0.45` |
 | `{pub_ipv4}` | Public IPv4 address | `203.0.113.1` |
