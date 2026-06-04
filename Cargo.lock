@@ -464,9 +464,9 @@ dependencies = [
 
 [[package]]
 name = "attohttpc"
-version = "0.30.1"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e2cdb6d5ed835199484bb92bb8b3edd526effe995c61732580439c1a67e2e9"
+checksum = "9bc84fee5e780a259df0e31fd3206fcb047ecff0eda5a71261f3e7564b78168c"
 dependencies = [
  "base64",
  "http",
@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-ext-applet-sysinfo"
-version = "0.3.0"
+version = "0.1.0"
 dependencies = [
  "attohttpc",
  "backoff",
@@ -4662,9 +4662,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.38.4"
+version = "0.39.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92ab6a2f8bfe508deb3c6406578252e491d299cbbf3bc0529ecc3313aee4a52f"
+checksum = "21d0d938c10fcda3e897e28aaddf4ab462375d411f4378cd63b1c945f69aba96"
 dependencies = [
  "libc",
  "memchr",
