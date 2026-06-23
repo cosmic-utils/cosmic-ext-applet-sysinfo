@@ -3,14 +3,20 @@
   "runtime": "org.freedesktop.Platform",
   "runtime-version": "25.08",
   "sdk": "org.freedesktop.Sdk",
-  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.rust-stable"
+  ],
   "command": "cosmic-ext-applet-sysinfo",
   "finish-args": [
     "--share=network",
     "--filesystem=xdg-config/cosmic:rw",
+    "--filesystem=/sys/class/hwmon:ro",
+    "--filesystem=/sys/class/drm:ro",
+    "--filesystem=/sys/class/accel:ro",
     "--talk-name=com.system76.CosmicSettingsDaemon",
     "--socket=wayland",
     "--device=dri",
+    "--talk-name=org.freedesktop.Flatpak",
     "--talk-name=org.freedesktop.portal.Desktop",
     "--talk-name=org.freedesktop.portal.Location"
   ],
