@@ -429,13 +429,24 @@ impl Data {
     }
 
     fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {
-        let output = Command::new("nvidia-smi")
+        let is_flatpak = Path::new("/.flatpak-info").exists();
+
+        let mut command = if is_flatpak {
+            let mut c = Command::new("flatpak-spawn");
+            c.args(["--host", "nvidia-smi"]);
+            c
+        } else {
+            Command::new("nvidia-smi")
+        };
+
+        let output = command
             .args([
                 "--query-gpu=temperature.gpu,utilization.gpu",
                 "--format=csv,noheader,nounits",
             ])
             .output()
             .ok()?;
+
         if !output.status.success() {
             return None;
         }
