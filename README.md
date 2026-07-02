@@ -12,6 +12,7 @@
 
 - **CPU usage** — percentage of total CPU utilization
 - **RAM usage** — percentage of memory used (optionally including swap)
+- **Disk usage** — read and write activity of all disks in MB/s
 - **Network speed** — download and upload speeds in MB/s
 - **CPU temperature** — reads from common thermal sensors via sysinfo
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
@@ -50,6 +51,8 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{ul_speed}` | Upload speed in MB/s (2 decimals) | `0.45` |
 | `{pub_ipv4}` | Public IPv4 address | `203.0.113.1` |
 | `{pub_ipv6}` | Public IPv6 address | `2001:db8::1` |
+| `{disk_read}` | Read activity of all disks in MB/s (2 decimals) | `34.5` |
+| `{disk_write}` | Write activity of all disks in MB/s (2 decimals) | `10.82` |
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
 
@@ -59,9 +62,9 @@ Use `{{` and `}}` for literal braces in your template.
 
 All metrics with separators:
 ```
-{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed}
+{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {disk_read} {disk_write}
 ```
-→ `48°C 3% | 51°C 45% | 67% | ↓1.23 ↑0.45`
+→ `48°C 3% | 51°C 45% | 67% | ↓1.23 ↑0.45 | 34.5 10.82`
 
 Grouped by category:
 ```

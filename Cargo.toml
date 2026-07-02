@@ -36,6 +36,7 @@ sysinfo = { version = "0.39.3", default-features = false, features = [
 	"system",
 	"network",
 	"component",
+	"disk",
 ] }
 tracing = { version = "0.1.44", default-features = false, features = ["log"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = [
