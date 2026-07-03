@@ -7,6 +7,7 @@ use sysinfo_mock::{Component, Components};
 
 use std::{
     cell::LazyCell,
+    collections::HashSet,
     fs,
     path::Path,
     process::Command,
@@ -26,6 +27,41 @@ const IP_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
 enum IpVersion {
     V4,
     V6,
+}
+
+pub(crate) struct Disk {
+    disks: sysinfo::Disks,
+
+    pub(crate) read: Option<f64>,
+    pub(crate) write: Option<f64>,
+}
+
+impl Disk {
+    fn new() -> Self {
+        Self {
+            read: None,
+            write: None,
+            disks: sysinfo::Disks::new_with_refreshed_list(),
+        }
+    }
+
+    fn refresh_disks(&mut self) {
+        self.disks.refresh(true);
+        let mut seen = HashSet::new();
+        let (mut read, mut write) = (0u64, 0u64);
+
+        for disk in self.disks.list() {
+            if !seen.insert(disk.name()) {
+                continue;
+            }
+
+            read += disk.usage().read_bytes;
+            write += disk.usage().written_bytes;
+        }
+
+        self.read = Some(read as f64 / 1_000_000.0);
+        self.write = Some(write as f64 / 1_000_000.0);
+    }
 }
 
 pub(crate) struct Npu {
@@ -116,6 +152,7 @@ pub(crate) struct Data {
     pub(crate) gpu_usage: Option<u64>,
     pub(crate) public_ipv4: Option<String>,
     pub(crate) public_ipv6: Option<String>,
+    pub(crate) disks: Disk,
 }
 
 impl Data {
@@ -125,6 +162,7 @@ impl Data {
         let components = Components::new_with_refreshed_list();
         let physical_interfaces = Self::detect_physical_interfaces(config);
         let npu_data = Npu::new();
+        let disks_data = Disk::new();
 
         let ip_backoff = ExponentialBackoff {
             max_interval: IP_REFRESH_INTERVAL,
@@ -151,6 +189,7 @@ impl Data {
             npu: npu_data,
             public_ipv4: None,
             public_ipv6: None,
+            disks: disks_data,
         }
     }
 
@@ -167,6 +206,8 @@ impl Data {
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
         let needs_npu_usage = requires.contains(Variable::NpuUsage);
         let needs_npu_frequency = requires.contains(Variable::NpuFrequency);
+        let needs_disk_read = requires.contains(Variable::DiskRead);
+        let needs_disk_write = requires.contains(Variable::DiskWrite);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -305,6 +346,11 @@ impl Data {
         }
         if !needs_pub_ipv6 {
             self.public_ipv6 = None;
+        }
+
+        // Disk
+        if needs_disk_read || needs_disk_write {
+            self.disks.refresh_disks();
         }
 
         // NPU

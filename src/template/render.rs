@@ -110,6 +110,14 @@ impl Template {
                 Some(f) => (format!("{f:>2}MHz").into(), None),
                 None => ("--".into(), None),
             },
+            Variable::DiskRead => match data.disks.read {
+                Some(s) => (format!("{s:4.1}").into(), None),
+                None => (" -.-".into(), None),
+            },
+            Variable::DiskWrite => match data.disks.write {
+                Some(s) => (format!("{s:4.1}").into(), None),
+                None => (" -.-".into(), None),
+            },
         }
     }
 }
