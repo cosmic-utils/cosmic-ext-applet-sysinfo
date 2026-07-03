@@ -30,6 +30,10 @@ The applet uses a configurable template string to control what is displayed and 
 ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo/v1/template
 ```
 
+You can also put small reminders here 
+<img width="1265" height="209" alt="image" src="https://github.com/user-attachments/assets/52d54fd8-16f5-4762-be28-b808b529c4fa" />
+
+
 ### Default template
 
 ```
