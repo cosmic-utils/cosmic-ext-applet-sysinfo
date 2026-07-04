@@ -5,9 +5,11 @@ mod i18n;
 mod template;
 
 fn main() -> cosmic::iced::Result {
-    // Initialize logging
+    // Initialize logging, honouring `RUST_LOG` when set (e.g. RUST_LOG=debug)
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
         .init();
 
     tracing::info!("Starting sysinfo applet");
