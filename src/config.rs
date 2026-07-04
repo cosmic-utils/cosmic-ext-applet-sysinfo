@@ -17,7 +17,8 @@ pub(crate) struct SysInfoConfig {
     pub(crate) use_mono_font: bool,
     /// Template string controlling the applet display.
     /// Available variables: {cpu_usage}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
-    /// {dl_speed}, {ul_speed}, {pub_ipv4}, {pub_ipv6}
+    /// {npu_usage}, {npu_frequency}, {dl_speed}, {ul_speed}, {pub_ipv4}, {pub_ipv6},
+    /// {disk_read}, {disk_write}
     pub(crate) template: String,
 }
 
