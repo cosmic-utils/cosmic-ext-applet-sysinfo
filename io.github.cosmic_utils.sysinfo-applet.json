@@ -12,6 +12,7 @@
     "--filesystem=/sys/class/drm:ro",
     "--filesystem=/sys/class/accel:ro",
     "--talk-name=com.system76.CosmicSettingsDaemon.*",
+    "--talk-name=com.system76.CosmicSettingsDaemon",
     "--socket=wayland",
     "--device=dri",
     "--talk-name=org.freedesktop.Flatpak",
