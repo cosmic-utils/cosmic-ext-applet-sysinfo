@@ -47,6 +47,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.0" date="2026-08-02">
+      <description>
+        <p>Add frosted glass support</p>
+      </description>
+    </release>
     <release version="0.3.0" date="2026-03-23">
       <description>
         <p>Stabilise applet layout with zero-padded format strings</p>
