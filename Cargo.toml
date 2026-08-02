@@ -1,18 +1,11 @@
 [package]
 name = "cosmic-ext-applet-sysinfo"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 license = "GPL-3.0"
 authors = ["rwxroot <rwxroot@proton.me>"]
 homepage = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/"
 repository = "https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo.git"
-
-# insta benefits from being compiled with optimizations, even in debug mode
-#
-# see https://insta.rs/docs/quickstart/
-[profile.dev.package]
-insta.opt-level = 3
-similar.opt-level = 3
 
 [profile.release]
 lto = "fat"
@@ -27,7 +20,7 @@ i18n-embed = { version = "0.16.0", default-features = false, features = [
 	"fluent-system",
 	"desktop-requester",
 ] }
-i18n-embed-fl = { version = "0.10.0", default-features = false }
+i18n-embed-fl = { version = "0.10.1", default-features = false }
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }
@@ -46,3 +39,10 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 
 [dev-dependencies]
 insta = "1.48.0"
+
+# insta benefits from being compiled with optimizations, even in debug mode
+#
+# see https://insta.rs/docs/quickstart/
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
