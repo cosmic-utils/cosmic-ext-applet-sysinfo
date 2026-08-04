@@ -1006,6 +1006,7 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "insta",
+ "libc",
  "libcosmic",
  "rust-embed",
  "sysinfo",

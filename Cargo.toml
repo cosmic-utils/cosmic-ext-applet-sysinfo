@@ -21,6 +21,7 @@ i18n-embed = { version = "0.16.0", default-features = false, features = [
 	"desktop-requester",
 ] }
 i18n-embed-fl = { version = "0.10.1", default-features = false }
+libc = "0.2"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }

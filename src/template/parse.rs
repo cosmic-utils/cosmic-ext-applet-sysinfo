@@ -76,6 +76,7 @@ impl FromStr for Variable {
             "cpu_temp" => Ok(Self::CpuTemp),
             "gpu_temp" => Ok(Self::GpuTemp),
             "gpu_usage" => Ok(Self::GpuUsage),
+            "vram_usage" => Ok(Self::VramUsage),
             "dl_speed" => Ok(Self::DlSpeed),
             "ul_speed" => Ok(Self::UlSpeed),
             "pub_ipv4" => Ok(Self::PublicIpv4),

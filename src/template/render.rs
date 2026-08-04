@@ -83,6 +83,13 @@ impl Template {
                 ),
                 None => ("--%".into(), None),
             },
+            Variable::VramUsage => match data.gpu.vram_usage {
+                Some(v) => (
+                    format!("{v:>2}%").into(),
+                    colors.threshold(v as f64, 50.0, 80.0),
+                ),
+                None => ("--%".into(), None),
+            },
             Variable::DlSpeed => match data.download_speed {
                 Some(s) => (format!("{s:4.1}").into(), None),
                 None => (" -.-".into(), None),

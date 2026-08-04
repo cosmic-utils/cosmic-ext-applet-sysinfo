@@ -9,6 +9,7 @@ use std::{
     cell::LazyCell,
     collections::{HashMap, HashSet},
     fs,
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
@@ -137,6 +138,7 @@ pub(crate) struct Gpu {
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
+    pub(crate) vram_usage: Option<u64>,
 }
 
 impl Gpu {
@@ -146,28 +148,41 @@ impl Gpu {
             last_idle_ms: HashMap::new(),
             temp: None,
             usage: None,
+            vram_usage: None,
         }
     }
 
-    fn refresh(&mut self, components: &Components, needs_temp: bool, needs_usage: bool) {
-        if !needs_temp && !needs_usage {
+    fn refresh(&mut self, components: &Components, requires: Requires) {
+        let needs_temp = requires.contains(Variable::GpuTemp);
+        let needs_usage = requires.contains(Variable::GpuUsage);
+        let needs_vram = requires.contains(Variable::VramUsage);
+
+        if !needs_temp && !needs_usage && !needs_vram {
             self.temp = None;
             self.usage = None;
+            self.vram_usage = None;
             return;
         }
 
-        // lazy nvidia-smi: answers both queries, spawned at most once
+        // lazy nvidia-smi: answers all queries, spawned at most once
         let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
         self.temp = if needs_temp {
-            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|(t, _)| *t))
+            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|(t, _, _)| *t))
         } else {
             None
         };
         self.usage = if needs_usage {
             Self::find_usage_sysfs()
                 .or_else(|| self.refresh_xe_usage())
-                .or_else(|| nvidia.as_ref().and_then(|(_, u)| *u))
+                .or_else(|| nvidia.as_ref().and_then(|(_, u, _)| *u))
+        } else {
+            None
+        };
+        self.vram_usage = if needs_vram {
+            Self::find_vram_usage_sysfs()
+                .or_else(Self::query_xe_vram)
+                .or_else(|| nvidia.as_ref().and_then(|(_, _, v)| *v))
         } else {
             None
         };
@@ -196,6 +211,99 @@ impl Gpu {
             }
         }
         None
+    }
+
+    /// VRAM usage percentage from the amdgpu sysfs interface.
+    fn find_vram_usage_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/drm").ok()?;
+        for entry in entries.flatten() {
+            let device = entry.path().join("device");
+            let read = |name: &str| {
+                fs::read_to_string(device.join(name))
+                    .ok()
+                    .and_then(|c| c.trim().parse::<u64>().ok())
+            };
+            if let (Some(used), Some(total)) =
+                (read("mem_info_vram_used"), read("mem_info_vram_total"))
+                && total > 0
+            {
+                return Some(used * 100 / total);
+            }
+        }
+        None
+    }
+
+    /// VRAM usage percentage for the Intel `xe` driver, from the
+    /// `DRM_XE_DEVICE_QUERY_MEM_REGIONS` ioctl on the first render node
+    /// reporting a VRAM region.
+    fn query_xe_vram() -> Option<u64> {
+        let entries = fs::read_dir("/dev/dri").ok()?;
+        entries
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("renderD"))
+            .find_map(|e| Self::query_xe_vram_device(&e.path()))
+    }
+
+    fn query_xe_vram_device(path: &Path) -> Option<u64> {
+        // include/uapi/drm/xe_drm.h
+        const DRM_IOCTL_XE_DEVICE_QUERY: libc::c_ulong = 0xc028_6440; // DRM_IOWR(0x40, drm_xe_device_query)
+        const DRM_XE_DEVICE_QUERY_MEM_REGIONS: u32 = 1;
+        const DRM_XE_MEM_REGION_CLASS_VRAM: u16 = 1;
+        const REGIONS_OFFSET: usize = 8; // drm_xe_query_mem_regions header
+        const REGION_SIZE: usize = 88; // drm_xe_mem_region
+
+        #[repr(C)]
+        #[derive(Default)]
+        struct DrmXeDeviceQuery {
+            extensions: u64,
+            query: u32,
+            size: u32,
+            data: u64,
+            reserved: [u64; 2],
+        }
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)
+            .ok()?;
+        let fd = file.as_raw_fd();
+
+        // two-call pattern: first for the buffer size, then for the data
+        let mut query = DrmXeDeviceQuery {
+            query: DRM_XE_DEVICE_QUERY_MEM_REGIONS,
+            ..Default::default()
+        };
+        // SAFETY: `query` is a valid drm_xe_device_query and outlives the call
+        if unsafe { libc::ioctl(fd, DRM_IOCTL_XE_DEVICE_QUERY, &mut query) } != 0 {
+            return None; // not an xe device
+        }
+
+        let mut buf = vec![0u8; query.size as usize];
+        query.data = buf.as_mut_ptr() as u64;
+        // SAFETY: `buf` is writable for the `query.size` bytes announced above
+        if unsafe { libc::ioctl(fd, DRM_IOCTL_XE_DEVICE_QUERY, &mut query) } != 0 {
+            return None;
+        }
+
+        let field_u64 = |base: usize, offset: usize| {
+            Some(u64::from_ne_bytes(
+                buf.get(base + offset..base + offset + 8)?.try_into().ok()?,
+            ))
+        };
+
+        let num_regions = u64::from(u32::from_ne_bytes(buf.get(0..4)?.try_into().ok()?));
+        let (mut used, mut total) = (0u64, 0u64);
+        for i in 0..num_regions as usize {
+            let base = REGIONS_OFFSET + i * REGION_SIZE;
+            let class = u16::from_ne_bytes(buf.get(base..base + 2)?.try_into().ok()?);
+            if class == DRM_XE_MEM_REGION_CLASS_VRAM {
+                total += field_u64(base, 8)?; // total_size
+                used += field_u64(base, 16)?; // used
+            }
+        }
+
+        (total > 0).then(|| used * 100 / total)
     }
 
     /// Usage of the busiest GT for the Intel `xe` driver, derived from C6
@@ -257,7 +365,8 @@ impl Gpu {
         samples
     }
 
-    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {
+    /// Returns (temperature, usage, vram usage percentage).
+    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>, Option<u64>)> {
         let is_flatpak = Path::new("/.flatpak-info").exists();
 
         let mut command = if is_flatpak {
@@ -270,7 +379,7 @@ impl Gpu {
 
         let output = command
             .args([
-                "--query-gpu=temperature.gpu,utilization.gpu",
+                "--query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total",
                 "--format=csv,noheader,nounits",
             ])
             .output()
@@ -280,11 +389,17 @@ impl Gpu {
             return None;
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        if let Some((temp, util)) = stdout.trim().split_once(", ") {
-            Some((temp.trim().parse().ok(), util.trim().parse().ok()))
-        } else {
-            Some((None, None))
-        }
+        let mut fields = stdout.trim().split(", ");
+        let temp = fields.next().and_then(|t| t.trim().parse().ok());
+        let mut parse_u64 = || fields.next().and_then(|f| f.trim().parse::<u64>().ok());
+
+        let usage = parse_u64();
+        let vram = match (parse_u64(), parse_u64()) {
+            (Some(used), Some(total)) if total > 0 => Some(used * 100 / total),
+            _ => None,
+        };
+
+        Some((temp, usage, vram))
     }
 }
 
@@ -357,7 +472,6 @@ impl Data {
         let needs_download = requires.contains(Variable::DlSpeed);
         let needs_upload = requires.contains(Variable::UlSpeed);
         let needs_gpu_temp = requires.contains(Variable::GpuTemp);
-        let needs_gpu_usage = requires.contains(Variable::GpuUsage);
         let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
         let needs_npu_usage = requires.contains(Variable::NpuUsage);
@@ -430,8 +544,7 @@ impl Data {
         };
 
         // GPU
-        self.gpu
-            .refresh(&self.components, needs_gpu_temp, needs_gpu_usage);
+        self.gpu.refresh(&self.components, requires);
 
         // Public IPs — exponential backoff on failure, 5-minute cadence on success.
         // Only refresh if:
