@@ -7,9 +7,9 @@ use sysinfo_mock::{Component, Components};
 
 use std::{
     cell::LazyCell,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
 };
@@ -130,6 +130,82 @@ impl Npu {
     }
 }
 
+/// GPU usage for cards driven by the Intel `xe` driver, which exposes no
+/// `gpu_busy_percent`. Busy time is derived from GT C6 idle residency:
+/// busy ≈ 100 - idle_time_delta / wall_time_delta.
+pub(crate) struct XeGpu {
+    last_sample_at: Option<Instant>,
+    last_idle_ms: HashMap<PathBuf, u64>,
+}
+
+impl XeGpu {
+    fn new() -> Self {
+        Self {
+            last_sample_at: None,
+            last_idle_ms: HashMap::new(),
+        }
+    }
+
+    /// Returns the busiest GT's usage percentage, or `None` before the first
+    /// sample or when no `xe` card is present.
+    fn refresh_usage(&mut self) -> Option<u64> {
+        let now = Instant::now();
+        let samples = Self::read_idle_residency_ms();
+
+        let usage = self.last_sample_at.and_then(|last| {
+            let wall_ms = u64::try_from(now.duration_since(last).as_millis()).ok()?;
+            if wall_ms == 0 {
+                return None;
+            }
+            samples
+                .iter()
+                .filter_map(|(path, idle_ms)| {
+                    let previous = self.last_idle_ms.get(path)?;
+                    let idle_delta = idle_ms.saturating_sub(*previous);
+                    Some(100 - (idle_delta * 100 / wall_ms).min(100))
+                })
+                .max()
+        });
+
+        self.last_sample_at = Some(now);
+        self.last_idle_ms = samples;
+
+        usage
+    }
+
+    /// Collect `idle_residency_ms` for every GT of every `xe` card
+    /// (`/sys/class/drm/card*/device/tile*/gt*/gtidle`).
+    fn read_idle_residency_ms() -> HashMap<PathBuf, u64> {
+        let mut samples = HashMap::new();
+        let Ok(cards) = fs::read_dir("/sys/class/drm") else {
+            return samples;
+        };
+
+        let subdirs = |path: PathBuf, prefix: &'static str| {
+            fs::read_dir(path)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter(move |e| e.file_name().to_string_lossy().starts_with(prefix))
+        };
+
+        for card in cards.flatten() {
+            for tile in subdirs(card.path().join("device"), "tile") {
+                for gt in subdirs(tile.path(), "gt") {
+                    let path = gt.path().join("gtidle/idle_residency_ms");
+                    if let Ok(contents) = fs::read_to_string(&path)
+                        && let Ok(value) = contents.trim().parse()
+                    {
+                        samples.insert(path, value);
+                    }
+                }
+            }
+        }
+
+        samples
+    }
+}
+
 /// The data coming from various sources (mostly the `sysinfo` crate)
 ///
 /// Manages each source, and stores the values extracted from them
@@ -143,6 +219,7 @@ pub(crate) struct Data {
     ip_backoff: ExponentialBackoff,
 
     pub(crate) npu: Npu,
+    xe_gpu: XeGpu,
     pub(crate) cpu_usage: Option<f32>,
     pub(crate) ram_usage: Option<u64>,
     pub(crate) download_speed: Option<f64>,
@@ -187,6 +264,7 @@ impl Data {
             gpu_temp: None,
             gpu_usage: None,
             npu: npu_data,
+            xe_gpu: XeGpu::new(),
             public_ipv4: None,
             public_ipv6: None,
             disks: disks_data,
@@ -284,7 +362,9 @@ impl Data {
                 None
             };
             self.gpu_usage = if needs_gpu_usage {
-                Self::find_gpu_usage_sysfs().or_else(|| nvidia.as_ref().and_then(|(_, u)| *u))
+                Self::find_gpu_usage_sysfs()
+                    .or_else(|| self.xe_gpu.refresh_usage())
+                    .or_else(|| nvidia.as_ref().and_then(|(_, u)| *u))
             } else {
                 None
             };
@@ -405,8 +485,9 @@ impl Data {
     }
 
     fn find_gpu_temp(components: &Components) -> Option<f32> {
-        const LABELS: [&str; 8] = [
-            "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "mem",
+        const LABELS: [&str; 10] = [
+            "amdgpu", "radeon", "nouveau", "nvidia", "gpu", "edge", "junction", "pkg", "vram",
+            "mem",
         ];
         LABELS.into_iter().find_map(|l| {
             components
@@ -573,6 +654,24 @@ mod test {
 
             // choose `junction` over `mem` despite `mem` coming earlier
             // in `components`, because `junction` comes earlier in `LABELS`
+            assert_eq!(Data::find_gpu_temp(&components), Some(2.0));
+        }
+
+        #[test]
+        fn intel_xe() {
+            let components = Components::from(vec![
+                Component {
+                    label: "xe vram",
+                    temperature: 1.0,
+                },
+                Component {
+                    label: "xe pkg",
+                    temperature: 2.0,
+                },
+            ]);
+
+            // the Intel xe driver labels the die temperature `pkg`; prefer it
+            // over the memory temperature `vram`
             assert_eq!(Data::find_gpu_temp(&components), Some(2.0));
         }
     }

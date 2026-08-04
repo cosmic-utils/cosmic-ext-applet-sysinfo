@@ -16,7 +16,7 @@
 - **Network speed** — download and upload speeds in MB/s
 - **CPU temperature** — reads from common thermal sensors via sysinfo
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
-- **GPU usage** — reads from sysfs (`gpu_busy_percent`), falls back to `nvidia-smi` for NVIDIA
+- **GPU usage** — reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
