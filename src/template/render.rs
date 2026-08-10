@@ -69,14 +69,14 @@ impl Template {
                 ),
                 None => ("--°C".into(), None),
             },
-            Variable::GpuTemp => match data.gpu_temp {
+            Variable::GpuTemp => match data.gpu.temp {
                 Some(t) => (
                     format!("{t:>2.0}°C").into(),
                     colors.threshold(t as f64, 60.0, 85.0),
                 ),
                 None => ("--°C".into(), None),
             },
-            Variable::GpuUsage => match data.gpu_usage {
+            Variable::GpuUsage => match data.gpu.usage {
                 Some(v) => (
                     format!("{v:>2}%").into(),
                     colors.threshold(v as f64, 50.0, 80.0),
