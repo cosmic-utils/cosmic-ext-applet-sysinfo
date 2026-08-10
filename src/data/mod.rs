@@ -225,7 +225,8 @@ impl Gpu {
         usage
     }
 
-    /// Collect `/sys/class/drm/card*/device/tile*/gt*/gtidle/idle_residency_ms`.
+    /// Collect `idle_residency_ms` for every GT of every `xe` card
+    /// (`/sys/class/drm/card*/device/tile*/gt*/gtidle`).
     fn read_idle_residency_ms() -> HashMap<PathBuf, u64> {
         let mut samples = HashMap::new();
         let Ok(cards) = fs::read_dir("/sys/class/drm") else {
