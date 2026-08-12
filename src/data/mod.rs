@@ -314,6 +314,8 @@ impl Gpu {
             ..Default::default()
         };
 
+        // SAFETY: the opcode is built from `DrmXeDeviceQuery` above, so it
+        // matches the type the kernel reads and writes through the pointer
         unsafe {
             ioctl::ioctl(
                 &file,
@@ -325,6 +327,8 @@ impl Gpu {
         let mut buf = vec![0u8; query.size as usize];
         query.data = buf.as_mut_ptr() as u64;
 
+        // SAFETY: as above; `buf` stays alive and writable for the whole
+        // call and is as large as `query.size` promises
         unsafe {
             ioctl::ioctl(
                 &file,
