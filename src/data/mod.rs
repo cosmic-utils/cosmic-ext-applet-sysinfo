@@ -9,13 +9,13 @@ use std::{
     cell::LazyCell,
     collections::{HashMap, HashSet},
     fs,
-    os::fd::AsRawFd,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
 };
 
 use backoff::{ExponentialBackoff, backoff::Backoff};
+use rustix::ioctl;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::{
@@ -131,6 +131,27 @@ impl Npu {
     }
 }
 
+#[derive(Default)]
+struct Vram {
+    used: Option<u64>,
+    total: Option<u64>,
+}
+
+impl Vram {
+    fn usage(&self) -> Option<u64> {
+        let used = self.used?;
+        let total = self.total?;
+        (total > 0).then(|| used * 100 / total)
+    }
+}
+
+#[derive(Default)]
+struct NvidiaSmi {
+    temp: Option<f32>,
+    usage: Option<u64>,
+    vram: Vram,
+}
+
 pub(crate) struct Gpu {
     // sampling state for `refresh_xe_usage`
     last_sample_at: Option<Instant>,
@@ -164,25 +185,25 @@ impl Gpu {
             return;
         }
 
-        // lazy nvidia-smi: answers all queries, spawned at most once
+        // lazy nvidia-smi: spawned at most once
         let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
         self.temp = if needs_temp {
-            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|(t, _, _)| *t))
+            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|n| n.temp))
         } else {
             None
         };
         self.usage = if needs_usage {
             Self::find_usage_sysfs()
                 .or_else(|| self.refresh_xe_usage())
-                .or_else(|| nvidia.as_ref().and_then(|(_, u, _)| *u))
+                .or_else(|| nvidia.as_ref().and_then(|n| n.usage))
         } else {
             None
         };
         self.vram_usage = if needs_vram {
             Self::find_vram_usage_sysfs()
                 .or_else(Self::query_xe_vram)
-                .or_else(|| nvidia.as_ref().and_then(|(_, _, v)| *v))
+                .or_else(|| nvidia.as_ref().and_then(|n| n.vram.usage()))
         } else {
             None
         };
@@ -223,8 +244,8 @@ impl Gpu {
                     .ok()
                     .and_then(|c| c.trim().parse::<u64>().ok())
             };
-            if let (Some(used), Some(total)) =
-                (read("mem_info_vram_used"), read("mem_info_vram_total"))
+            if let Some(used) = read("mem_info_vram_used")
+                && let Some(total) = read("mem_info_vram_total")
                 && total > 0
             {
                 return Some(used * 100 / total);
@@ -244,14 +265,15 @@ impl Gpu {
             .find_map(|e| Self::query_xe_vram_device(&e.path()))
     }
 
+    /// Ask one render node for its memory regions and sum the VRAM ones.
+    ///
+    /// The xe driver has no sysfs equivalent of amdgpu's `mem_info_vram_*`;
+    /// its only unprivileged interface for this is the device query ioctl,
+    /// and no crate currently wraps the xe uAPI (the `drm`/`drm-ffi` crates
+    /// cover core DRM only). All constants and layouts below mirror the
+    /// kernel's `include/uapi/drm/xe_drm.h`.
     fn query_xe_vram_device(path: &Path) -> Option<u64> {
-        // include/uapi/drm/xe_drm.h
-        const DRM_IOCTL_XE_DEVICE_QUERY: libc::c_ulong = 0xc028_6440; // DRM_IOWR(0x40, drm_xe_device_query)
-        const DRM_XE_DEVICE_QUERY_MEM_REGIONS: u32 = 1;
-        const DRM_XE_MEM_REGION_CLASS_VRAM: u16 = 1;
-        const REGIONS_OFFSET: usize = 8; // drm_xe_query_mem_regions header
-        const REGION_SIZE: usize = 88; // drm_xe_mem_region
-
+        // mirror of `struct drm_xe_device_query` (the ioctl argument)
         #[repr(C)]
         #[derive(Default)]
         struct DrmXeDeviceQuery {
@@ -262,29 +284,54 @@ impl Gpu {
             reserved: [u64; 2],
         }
 
+        // DRM_IOWR(DRM_COMMAND_BASE + DRM_XE_DEVICE_QUERY, struct drm_xe_device_query)
+        const DRM_IOCTL_XE_DEVICE_QUERY: ioctl::Opcode =
+            ioctl::opcode::read_write::<DrmXeDeviceQuery>(b'd', 0x40);
+        // `enum drm_xe_device_query_type`: which query the ioctl runs
+        const DRM_XE_DEVICE_QUERY_MEM_REGIONS: u32 = 1;
+        // `enum drm_xe_mem_region_class`: dedicated VRAM (SYSMEM is 0)
+        const DRM_XE_MEM_REGION_CLASS_VRAM: u16 = 1;
+        // reply layout: a `struct drm_xe_query_mem_regions` header
+        // { u32 num_mem_regions; u32 pad; }, then `num_mem_regions`
+        // consecutive 88-byte `struct drm_xe_mem_region` entries
+        const REGIONS_OFFSET: usize = 8;
+        const REGION_SIZE: usize = 88;
+
         let file = fs::OpenOptions::new()
             .read(true)
             .write(true)
             .open(path)
             .ok()?;
-        let fd = file.as_raw_fd();
 
-        // two-call pattern: first for the buffer size, then for the data
+        // The reply is variable-length (one entry per memory region), and the
+        // kernel rejects any `size` other than 0 or the exact required value.
+        // The query becomes a two-call pattern: with `size = 0` the kernel only
+        // fills in the required size, then a second call fetches the data.
+        // On render nodes not driven by xe the first call fails.
+
         let mut query = DrmXeDeviceQuery {
             query: DRM_XE_DEVICE_QUERY_MEM_REGIONS,
             ..Default::default()
         };
-        // SAFETY: `query` is a valid drm_xe_device_query and outlives the call
-        if unsafe { libc::ioctl(fd, DRM_IOCTL_XE_DEVICE_QUERY, &mut query) } != 0 {
-            return None; // not an xe device
+
+        unsafe {
+            ioctl::ioctl(
+                &file,
+                ioctl::Updater::<DRM_IOCTL_XE_DEVICE_QUERY, _>::new(&mut query),
+            )
         }
+        .ok()?;
 
         let mut buf = vec![0u8; query.size as usize];
         query.data = buf.as_mut_ptr() as u64;
-        // SAFETY: `buf` is writable for the `query.size` bytes announced above
-        if unsafe { libc::ioctl(fd, DRM_IOCTL_XE_DEVICE_QUERY, &mut query) } != 0 {
-            return None;
+
+        unsafe {
+            ioctl::ioctl(
+                &file,
+                ioctl::Updater::<DRM_IOCTL_XE_DEVICE_QUERY, _>::new(&mut query),
+            )
         }
+        .ok()?;
 
         let field_u64 = |base: usize, offset: usize| {
             Some(u64::from_ne_bytes(
@@ -296,6 +343,8 @@ impl Gpu {
         let (mut used, mut total) = (0u64, 0u64);
         for i in 0..num_regions as usize {
             let base = REGIONS_OFFSET + i * REGION_SIZE;
+            // field offsets within `struct drm_xe_mem_region`:
+            // mem_class at 0, total_size at 8, used at 16
             let class = u16::from_ne_bytes(buf.get(base..base + 2)?.try_into().ok()?);
             if class == DRM_XE_MEM_REGION_CLASS_VRAM {
                 total += field_u64(base, 8)?; // total_size
@@ -365,8 +414,7 @@ impl Gpu {
         samples
     }
 
-    /// Returns (temperature, usage, vram usage percentage).
-    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>, Option<u64>)> {
+    fn query_nvidia_smi() -> Option<NvidiaSmi> {
         let is_flatpak = Path::new("/.flatpak-info").exists();
 
         let mut command = if is_flatpak {
@@ -390,16 +438,15 @@ impl Gpu {
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut fields = stdout.trim().split(", ");
-        let temp = fields.next().and_then(|t| t.trim().parse().ok());
-        let mut parse_u64 = || fields.next().and_then(|f| f.trim().parse::<u64>().ok());
 
-        let usage = parse_u64();
-        let vram = match (parse_u64(), parse_u64()) {
-            (Some(used), Some(total)) if total > 0 => Some(used * 100 / total),
-            _ => None,
-        };
-
-        Some((temp, usage, vram))
+        Some(NvidiaSmi {
+            temp: fields.next().and_then(|s| s.parse().ok()),
+            usage: fields.next().and_then(|s| s.parse().ok()),
+            vram: Vram {
+                used: fields.next().and_then(|s| s.parse().ok()),
+                total: fields.next().and_then(|s| s.parse().ok()),
+            },
+        })
     }
 }
 

@@ -21,11 +21,11 @@ i18n-embed = { version = "0.16.0", default-features = false, features = [
 	"desktop-requester",
 ] }
 i18n-embed-fl = { version = "0.10.1", default-features = false }
-libc = "0.2"
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }
 rust-embed = { version = "8.12.0", default-features = false }
+rustix = { version = "1.1.4", default-features = false, features = ["std"] }
 sysinfo = { version = "0.39.6", default-features = false, features = [
 	"system",
 	"network",

@@ -1,0 +1,31 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"GPU {gpu_usage} {gpu_temp} VRAM {vram_usage}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "GPU ",
+        ),
+        Variable(
+            GpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            GpuTemp,
+        ),
+        Literal(
+            " VRAM ",
+        ),
+        Variable(
+            VramUsage,
+        ),
+    ],
+    requires: {
+        "gpu_temp",
+        "gpu_usage",
+        "vram_usage",
+    },
+}

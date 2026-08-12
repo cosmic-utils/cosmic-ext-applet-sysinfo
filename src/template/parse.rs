@@ -124,6 +124,10 @@ mod test {
                 parse("CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}",)
             );
             insta::assert_debug_snapshot!(
+                "gpu_metrics",
+                parse("GPU {gpu_usage} {gpu_temp} VRAM {vram_usage}")
+            );
+            insta::assert_debug_snapshot!(
                 "network_focused",
                 parse("↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}")
             );
