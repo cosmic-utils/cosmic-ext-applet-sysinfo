@@ -444,11 +444,11 @@ impl Gpu {
         let mut fields = stdout.trim().split(", ");
 
         Some(NvidiaSmi {
-            temp: fields.next().and_then(|s| s.parse().ok()),
-            usage: fields.next().and_then(|s| s.parse().ok()),
+            temp: fields.next().and_then(|s| s.trim().parse().ok()),
+            usage: fields.next().and_then(|s| s.trim().parse().ok()),
             vram: Vram {
-                used: fields.next().and_then(|s| s.parse().ok()),
-                total: fields.next().and_then(|s| s.parse().ok()),
+                used: fields.next().and_then(|s| s.trim().parse().ok()),
+                total: fields.next().and_then(|s| s.trim().parse().ok()),
             },
         })
     }
