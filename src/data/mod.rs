@@ -15,6 +15,7 @@ use std::{
 };
 
 use backoff::{ExponentialBackoff, backoff::Backoff};
+use rustix::ioctl;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Networks, RefreshKind, System};
 
 use crate::{
@@ -130,6 +131,27 @@ impl Npu {
     }
 }
 
+#[derive(Default)]
+struct Vram {
+    used: Option<u64>,
+    total: Option<u64>,
+}
+
+impl Vram {
+    fn usage(&self) -> Option<u64> {
+        let used = self.used?;
+        let total = self.total?;
+        (total > 0).then(|| used * 100 / total)
+    }
+}
+
+#[derive(Default)]
+struct NvidiaSmi {
+    temp: Option<f32>,
+    usage: Option<u64>,
+    vram: Vram,
+}
+
 pub(crate) struct Gpu {
     // sampling state for `refresh_xe_usage`
     last_sample_at: Option<Instant>,
@@ -137,6 +159,7 @@ pub(crate) struct Gpu {
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
+    pub(crate) vram_usage: Option<u64>,
 }
 
 impl Gpu {
@@ -146,28 +169,41 @@ impl Gpu {
             last_idle_ms: HashMap::new(),
             temp: None,
             usage: None,
+            vram_usage: None,
         }
     }
 
-    fn refresh(&mut self, components: &Components, needs_temp: bool, needs_usage: bool) {
-        if !needs_temp && !needs_usage {
+    fn refresh(&mut self, components: &Components, requires: Requires) {
+        let needs_temp = requires.contains(Variable::GpuTemp);
+        let needs_usage = requires.contains(Variable::GpuUsage);
+        let needs_vram = requires.contains(Variable::VramUsage);
+
+        if !needs_temp && !needs_usage && !needs_vram {
             self.temp = None;
             self.usage = None;
+            self.vram_usage = None;
             return;
         }
 
-        // lazy nvidia-smi: answers both queries, spawned at most once
+        // lazy nvidia-smi: spawned at most once
         let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
         self.temp = if needs_temp {
-            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|(t, _)| *t))
+            Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|n| n.temp))
         } else {
             None
         };
         self.usage = if needs_usage {
             Self::find_usage_sysfs()
                 .or_else(|| self.refresh_xe_usage())
-                .or_else(|| nvidia.as_ref().and_then(|(_, u)| *u))
+                .or_else(|| nvidia.as_ref().and_then(|n| n.usage))
+        } else {
+            None
+        };
+        self.vram_usage = if needs_vram {
+            Self::find_vram_usage_sysfs()
+                .or_else(Self::query_xe_vram)
+                .or_else(|| nvidia.as_ref().and_then(|n| n.vram.usage()))
         } else {
             None
         };
@@ -196,6 +232,131 @@ impl Gpu {
             }
         }
         None
+    }
+
+    /// VRAM usage percentage from the amdgpu sysfs interface.
+    fn find_vram_usage_sysfs() -> Option<u64> {
+        let entries = fs::read_dir("/sys/class/drm").ok()?;
+        for entry in entries.flatten() {
+            let device = entry.path().join("device");
+            let read = |name: &str| {
+                fs::read_to_string(device.join(name))
+                    .ok()
+                    .and_then(|c| c.trim().parse::<u64>().ok())
+            };
+            if let Some(used) = read("mem_info_vram_used")
+                && let Some(total) = read("mem_info_vram_total")
+                && total > 0
+            {
+                return Some(used * 100 / total);
+            }
+        }
+        None
+    }
+
+    /// VRAM usage percentage for the Intel `xe` driver, from the
+    /// `DRM_XE_DEVICE_QUERY_MEM_REGIONS` ioctl on the first render node
+    /// reporting a VRAM region.
+    fn query_xe_vram() -> Option<u64> {
+        let entries = fs::read_dir("/dev/dri").ok()?;
+        entries
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("renderD"))
+            .find_map(|e| Self::query_xe_vram_device(&e.path()))
+    }
+
+    /// Ask one render node for its memory regions and sum the VRAM ones.
+    ///
+    /// The xe driver has no sysfs equivalent of amdgpu's `mem_info_vram_*`;
+    /// its only unprivileged interface for this is the device query ioctl,
+    /// and no crate currently wraps the xe uAPI (the `drm`/`drm-ffi` crates
+    /// cover core DRM only). All constants and layouts below mirror the
+    /// kernel's `include/uapi/drm/xe_drm.h`.
+    fn query_xe_vram_device(path: &Path) -> Option<u64> {
+        // mirror of `struct drm_xe_device_query` (the ioctl argument)
+        #[repr(C)]
+        #[derive(Default)]
+        struct DrmXeDeviceQuery {
+            extensions: u64,
+            query: u32,
+            size: u32,
+            data: u64,
+            reserved: [u64; 2],
+        }
+
+        // DRM_IOWR(DRM_COMMAND_BASE + DRM_XE_DEVICE_QUERY, struct drm_xe_device_query)
+        const DRM_IOCTL_XE_DEVICE_QUERY: ioctl::Opcode =
+            ioctl::opcode::read_write::<DrmXeDeviceQuery>(b'd', 0x40);
+        // `enum drm_xe_device_query_type`: which query the ioctl runs
+        const DRM_XE_DEVICE_QUERY_MEM_REGIONS: u32 = 1;
+        // `enum drm_xe_mem_region_class`: dedicated VRAM (SYSMEM is 0)
+        const DRM_XE_MEM_REGION_CLASS_VRAM: u16 = 1;
+        // reply layout: a `struct drm_xe_query_mem_regions` header
+        // { u32 num_mem_regions; u32 pad; }, then `num_mem_regions`
+        // consecutive 88-byte `struct drm_xe_mem_region` entries
+        const REGIONS_OFFSET: usize = 8;
+        const REGION_SIZE: usize = 88;
+
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)
+            .ok()?;
+
+        // The reply is variable-length (one entry per memory region), and the
+        // kernel rejects any `size` other than 0 or the exact required value.
+        // The query becomes a two-call pattern: with `size = 0` the kernel only
+        // fills in the required size, then a second call fetches the data.
+        // On render nodes not driven by xe the first call fails.
+
+        let mut query = DrmXeDeviceQuery {
+            query: DRM_XE_DEVICE_QUERY_MEM_REGIONS,
+            ..Default::default()
+        };
+
+        // SAFETY: the opcode is built from `DrmXeDeviceQuery` above, so it
+        // matches the type the kernel reads and writes through the pointer
+        unsafe {
+            ioctl::ioctl(
+                &file,
+                ioctl::Updater::<DRM_IOCTL_XE_DEVICE_QUERY, _>::new(&mut query),
+            )
+        }
+        .ok()?;
+
+        let mut buf = vec![0u8; query.size as usize];
+        query.data = buf.as_mut_ptr() as u64;
+
+        // SAFETY: as above; `buf` stays alive and writable for the whole
+        // call and is as large as `query.size` promises
+        unsafe {
+            ioctl::ioctl(
+                &file,
+                ioctl::Updater::<DRM_IOCTL_XE_DEVICE_QUERY, _>::new(&mut query),
+            )
+        }
+        .ok()?;
+
+        let field_u64 = |base: usize, offset: usize| {
+            Some(u64::from_ne_bytes(
+                buf.get(base + offset..base + offset + 8)?.try_into().ok()?,
+            ))
+        };
+
+        let num_regions = u64::from(u32::from_ne_bytes(buf.get(0..4)?.try_into().ok()?));
+        let (mut used, mut total) = (0u64, 0u64);
+        for i in 0..num_regions as usize {
+            let base = REGIONS_OFFSET + i * REGION_SIZE;
+            // field offsets within `struct drm_xe_mem_region`:
+            // mem_class at 0, total_size at 8, used at 16
+            let class = u16::from_ne_bytes(buf.get(base..base + 2)?.try_into().ok()?);
+            if class == DRM_XE_MEM_REGION_CLASS_VRAM {
+                total += field_u64(base, 8)?; // total_size
+                used += field_u64(base, 16)?; // used
+            }
+        }
+
+        (total > 0).then(|| used * 100 / total)
     }
 
     /// Usage of the busiest GT for the Intel `xe` driver, derived from C6
@@ -257,7 +418,7 @@ impl Gpu {
         samples
     }
 
-    fn query_nvidia_smi() -> Option<(Option<f32>, Option<u64>)> {
+    fn query_nvidia_smi() -> Option<NvidiaSmi> {
         let is_flatpak = Path::new("/.flatpak-info").exists();
 
         let mut command = if is_flatpak {
@@ -270,7 +431,7 @@ impl Gpu {
 
         let output = command
             .args([
-                "--query-gpu=temperature.gpu,utilization.gpu",
+                "--query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total",
                 "--format=csv,noheader,nounits",
             ])
             .output()
@@ -280,11 +441,16 @@ impl Gpu {
             return None;
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        if let Some((temp, util)) = stdout.trim().split_once(", ") {
-            Some((temp.trim().parse().ok(), util.trim().parse().ok()))
-        } else {
-            Some((None, None))
-        }
+        let mut fields = stdout.trim().split(", ");
+
+        Some(NvidiaSmi {
+            temp: fields.next().and_then(|s| s.trim().parse().ok()),
+            usage: fields.next().and_then(|s| s.trim().parse().ok()),
+            vram: Vram {
+                used: fields.next().and_then(|s| s.trim().parse().ok()),
+                total: fields.next().and_then(|s| s.trim().parse().ok()),
+            },
+        })
     }
 }
 
@@ -357,7 +523,6 @@ impl Data {
         let needs_download = requires.contains(Variable::DlSpeed);
         let needs_upload = requires.contains(Variable::UlSpeed);
         let needs_gpu_temp = requires.contains(Variable::GpuTemp);
-        let needs_gpu_usage = requires.contains(Variable::GpuUsage);
         let needs_pub_ipv4 = requires.contains(Variable::PublicIpv4);
         let needs_pub_ipv6 = requires.contains(Variable::PublicIpv6);
         let needs_npu_usage = requires.contains(Variable::NpuUsage);
@@ -430,8 +595,7 @@ impl Data {
         };
 
         // GPU
-        self.gpu
-            .refresh(&self.components, needs_gpu_temp, needs_gpu_usage);
+        self.gpu.refresh(&self.components, requires);
 
         // Public IPs — exponential backoff on failure, 5-minute cadence on success.
         // Only refresh if:

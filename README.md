@@ -17,6 +17,7 @@
 - **CPU temperature** — reads from common thermal sensors via sysinfo
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** — reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
+- **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
@@ -49,6 +50,7 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{cpu_temp}` | CPU temperature in °C | `51°C` |
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
 | `{gpu_usage}` | GPU usage % | `3%` |
+| `{vram_usage}` | GPU memory (VRAM) usage % | `9%` |
 | `{npu_usage}` | NPU usage % |`43%` |
 | `{npu_frequency}` | NPU frequency MHz |`1600MHz` |
 | `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
@@ -105,6 +107,7 @@ Values are automatically colour-coded using COSMIC theme colours:
 | CPU temp | < 60°C | 60–80°C | ≥ 80°C |
 | GPU temp | < 60°C | 60–85°C | ≥ 85°C |
 | GPU usage | < 50% | 50–80% | ≥ 80% |
+| VRAM usage | < 50% | 50–80% | ≥ 80% |
 
 Download/upload speeds and public IPs are not colour-coded.
 

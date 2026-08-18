@@ -76,6 +76,7 @@ impl FromStr for Variable {
             "cpu_temp" => Ok(Self::CpuTemp),
             "gpu_temp" => Ok(Self::GpuTemp),
             "gpu_usage" => Ok(Self::GpuUsage),
+            "vram_usage" => Ok(Self::VramUsage),
             "dl_speed" => Ok(Self::DlSpeed),
             "ul_speed" => Ok(Self::UlSpeed),
             "pub_ipv4" => Ok(Self::PublicIpv4),
@@ -121,6 +122,10 @@ mod test {
             insta::assert_debug_snapshot!(
                 "grouped_by_category",
                 parse("CPU {cpu_usage} {cpu_temp} | GPU {gpu_usage} {gpu_temp} | RAM {ram_usage}",)
+            );
+            insta::assert_debug_snapshot!(
+                "gpu_metrics",
+                parse("GPU {gpu_usage} {gpu_temp} VRAM {vram_usage}")
             );
             insta::assert_debug_snapshot!(
                 "network_focused",

@@ -1008,6 +1008,7 @@ dependencies = [
  "insta",
  "libcosmic",
  "rust-embed",
+ "rustix 1.1.4",
  "sysinfo",
  "tracing",
  "tracing-subscriber",
