@@ -125,6 +125,17 @@ impl Template {
                 Some(s) => (format!("{s:4.1}").into(), None),
                 None => (" -.-".into(), None),
             },
+            Variable::DiskUsed => match data.disks.used {
+                Some(s) => (format!("{s:4.1}GB").into(), None),
+                None => ("-.-".into(), None),
+            },
+            Variable::DiskUsage => match data.disks.usage {
+                Some(s) => (
+                    format!("{s:>2}%").into(),
+                    colors.threshold(s as f64, 75.0, 90.0),
+                ),
+                None => ("--%".into(), None),
+            },
         }
     }
 }

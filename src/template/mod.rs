@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use crate::template::Variable::{
-    CpuTemp, CpuUsage, DiskRead, DiskWrite, DlSpeed, GpuTemp, GpuUsage, NpuFrequency, NpuUsage,
-    PublicIpv4, PublicIpv6, RamUsage, UlSpeed, VramUsage,
+    CpuTemp, CpuUsage, DiskRead, DiskUsage, DiskUsed, DiskWrite, DlSpeed, GpuTemp, GpuUsage,
+    NpuFrequency, NpuUsage, PublicIpv4, PublicIpv6, RamUsage, UlSpeed, VramUsage
 };
 
 mod parse;
@@ -31,9 +31,11 @@ pub(crate) enum Variable {
     DiskRead = 11,
     DiskWrite = 12,
     VramUsage = 13,
+    DiskUsed = 14,
+    DiskUsage = 15,
 }
 
-const ALL_VARIABLES: [Variable; 14] = [
+const ALL_VARIABLES: [Variable; 16] = [
     CpuUsage,
     RamUsage,
     CpuTemp,
@@ -48,6 +50,8 @@ const ALL_VARIABLES: [Variable; 14] = [
     DiskRead,
     DiskWrite,
     VramUsage,
+    DiskUsed,
+    DiskUsage,
 ];
 
 impl Variable {
@@ -97,6 +101,8 @@ impl Debug for Requires {
                 DiskRead => "disk_read",
                 DiskWrite => "disk_write",
                 VramUsage => "vram_usage",
+                DiskUsed => "disk_used",
+                DiskUsage => "disk_usage",
             })
             .collect();
 

@@ -85,6 +85,8 @@ impl FromStr for Variable {
             "npu_frequency" => Ok(Self::NpuFrequency),
             "disk_read" => Ok(Self::DiskRead),
             "disk_write" => Ok(Self::DiskWrite),
+            "disk_used" => Ok(Self::DiskUsed),
+            "disk_usage" => Ok(Self::DiskUsage),
             _ => Err(()),
         }
     }
@@ -116,7 +118,7 @@ mod test {
             insta::assert_debug_snapshot!(
                 "all_metrics_with_separators",
                 parse(
-                    "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {pub_ipv4} {pub_ipv6} | {disk_read} {disk_write}",
+                    "{gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {pub_ipv4} {pub_ipv6} | {disk_read} {disk_write} | {disk_used} {disk_usage}",
                 ),
             );
             insta::assert_debug_snapshot!(
