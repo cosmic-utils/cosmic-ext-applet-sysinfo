@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::template::Variable::{
     CpuTemp, CpuUsage, DiskRead, DiskUsage, DiskUsed, DiskWrite, DlSpeed, GpuTemp, GpuUsage,
-    NpuFrequency, NpuUsage, PublicIpv4, PublicIpv6, RamUsage, UlSpeed, VramUsage
+    NpuFrequency, NpuUsage, PublicIpv4, PublicIpv6, RamUsage, UlSpeed, VramUsage,
 };
 
 mod parse;
