@@ -59,6 +59,8 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{pub_ipv6}` | Public IPv6 address | `2001:db8::1` |
 | `{disk_read}` | Read activity of all disks in MB/s (2 decimals) | `34.5` |
 | `{disk_write}` | Write activity of all disks in MB/s (2 decimals) | `10.82` |
+| `{disk_used}` | Used space of all disks in GB | `195.2GB` |
+| `{disk_usage}` | Used space of all disks % | `65%` |
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
 
@@ -108,6 +110,7 @@ Values are automatically colour-coded using COSMIC theme colours:
 | GPU temp | < 60°C | 60–85°C | ≥ 85°C |
 | GPU usage | < 50% | 50–80% | ≥ 80% |
 | VRAM usage | < 50% | 50–80% | ≥ 80% |
+| Disk usage | < 75% | 75-90% | ≥ 90% |
 
 Download/upload speeds and public IPs are not colour-coded.
 

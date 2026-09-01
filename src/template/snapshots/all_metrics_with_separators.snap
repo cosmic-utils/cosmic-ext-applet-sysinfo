@@ -68,6 +68,18 @@ Template {
         Variable(
             DiskWrite,
         ),
+        Literal(
+            " | ",
+        ),
+        Variable(
+            DiskUsed,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            DiskUsage,
+        ),
     ],
     requires: {
         "cpu_usage",
@@ -81,5 +93,7 @@ Template {
         "pub_ipv6",
         "disk_read",
         "disk_write",
+        "disk_used",
+        "disk_usage",
     },
 }

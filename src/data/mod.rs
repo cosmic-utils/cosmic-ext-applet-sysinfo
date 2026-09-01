@@ -35,6 +35,8 @@ pub(crate) struct Disk {
 
     pub(crate) read: Option<f64>,
     pub(crate) write: Option<f64>,
+    pub(crate) used: Option<u64>,
+    pub(crate) usage: Option<u64>,
 }
 
 impl Disk {
@@ -42,6 +44,8 @@ impl Disk {
         Self {
             read: None,
             write: None,
+            used: None,
+            usage: None,
             disks: sysinfo::Disks::new_with_refreshed_list(),
         }
     }
@@ -50,6 +54,7 @@ impl Disk {
         self.disks.refresh(true);
         let mut seen = HashSet::new();
         let (mut read, mut write) = (0u64, 0u64);
+        let (mut total, mut available) = (0, 0);
 
         for disk in self.disks.list() {
             if !seen.insert(disk.name()) {
@@ -58,10 +63,16 @@ impl Disk {
 
             read += disk.usage().read_bytes;
             write += disk.usage().written_bytes;
+            total += disk.total_space();
+            available += disk.available_space();
         }
+
+        let used = total - available;
 
         self.read = Some(read as f64 / 1_000_000.0);
         self.write = Some(write as f64 / 1_000_000.0);
+        self.used = Some(used / 1_000_000_000);
+        self.usage = Some(100 * used / total);
     }
 }
 
@@ -529,6 +540,8 @@ impl Data {
         let needs_npu_frequency = requires.contains(Variable::NpuFrequency);
         let needs_disk_read = requires.contains(Variable::DiskRead);
         let needs_disk_write = requires.contains(Variable::DiskWrite);
+        let needs_disk_used = requires.contains(Variable::DiskUsed);
+        let needs_disk_usage = requires.contains(Variable::DiskUsage);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -653,7 +666,7 @@ impl Data {
         }
 
         // Disk
-        if needs_disk_read || needs_disk_write {
+        if needs_disk_read || needs_disk_write || needs_disk_used || needs_disk_usage {
             self.disks.refresh_disks();
         }
 
