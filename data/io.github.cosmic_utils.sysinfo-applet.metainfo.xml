@@ -25,7 +25,7 @@
   <description>
     <p>Monitor your system's CPU, RAM, GPU, network usage as well as CPU and GPU temperature directly from the COSMIC panel. Get instant visibility into system performance with clean, readable metrics.</p>
     <p xml:lang="cs">Sledujte využití CPU, paměti a sítě přímo z panelu COSMIC. Získejte okamžitý přehled o výkonu systému díky přehledným a snadno čitelným ukazatelům.</p>
-    <p xml:lang="pl">Śledź użycie CPU, GPU, RAMu, Sieci oraz temperatur CPU i GPU bezpośrenio z panelu COSMIC. Na jeden rzut oka zobacz wydajność systemu.</p>
+    <p xml:lang="pl">Śledź użycie CPU, GPU, RAMu, Sieci oraz temperatury CPU oraz GPU bezpośrednio z panelu COSMIC. Na pierwszy rzut oka zobaczysz wykorzystanie zasobów swojego systemu.</p>
     <p xml:lang="uk">Слідкуйте за CPU, пам'яттю та мережею з панелі COSMIC. Отримуйте швидкий і зрозумілий огляд продуктивності системи.</p>
   </description>
   <icon type="stock">io.github.cosmic_utils.sysinfo-applet-symbolic.svg</icon>
