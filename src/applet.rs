@@ -66,6 +66,7 @@ pub(crate) enum Message {
     ToggleIncludeSwapWithRam(bool),
     ToggleUseMonoFont(bool),
     TemplateChanged(String),
+    OpenMonitor,
 }
 
 impl cosmic::Application for SysInfo {
@@ -143,6 +144,9 @@ impl cosmic::Application for SysInfo {
 
         match message {
             Message::Tick => self.data.refresh(self.template.requires, &self.config),
+            Message::Size(size) => {
+                self.size = size;
+            }
             Message::ToggleWindow => {
                 if let Some(id) = self.popup.take() {
                     return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(
@@ -196,8 +200,16 @@ impl cosmic::Application for SysInfo {
                 }
                 self.update_template_cache();
             }
-            Message::Size(size) => {
-                self.size = size;
+            Message::OpenMonitor => {
+                // Launch cosmic-monitor if it exists
+                if std::path::Path::new("/usr/bin/cosmic-monitor").exists() {
+                    match std::process::Command::new("/usr/bin/cosmic-monitor").spawn() {
+                        Ok(_) => tracing::info!("Launched cosmic-monitor"),
+                        Err(error) => tracing::error!("Failed to launch cosmic-monitor: {error}"),
+                    }
+                } else {
+                    tracing::warn!("cosmic-monitor binary not found at /usr/bin/cosmic-monitor");
+                }
             }
         }
 
@@ -248,11 +260,21 @@ impl cosmic::Application for SysInfo {
             )
             .spacing(4);
 
-        let data = cosmic::widget::column::with_capacity(3)
+        // Add conditional Open COSMIC Monitor button
+        let open_monitor_button = cosmic::widget::button::text(fl!("open-monitor-menu-item"))
+            .on_press(Message::OpenMonitor);
+
+        // Build the data column with conditional monitor button
+        let mut data = cosmic::widget::column::with_capacity(4)
             .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
             .push(cosmic::applet::padded_control(use_mono_font_toggler))
             .push(cosmic::applet::padded_control(template_input))
             .padding([16, 0]);
+
+        // Add monitor button only if binary exists
+        if std::path::Path::new("/usr/bin/cosmic-monitor").exists() {
+            data = data.push(cosmic::applet::padded_control(open_monitor_button));
+        }
 
         self.core
             .applet
