@@ -1,43 +1,16 @@
 use std::{str::FromStr, time::Duration};
 
-use cosmic::iced::{Color, Rectangle, Size, event::listen_with};
+use cosmic::iced::{Rectangle, Size, event::listen_with};
 use tracing::{debug, trace};
 
 use crate::{
+    color::AppletColor,
     config::{APP_ID, Flags, SysInfoConfig},
     data, fl, template,
 };
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
-}
-
-/// The colours used in the UI (mainly for the template right now)
-pub(crate) struct ThemeColors {
-    pub(crate) yellow: Color,
-    pub(crate) red: Color,
-}
-
-impl ThemeColors {
-    fn from_active_theme() -> Self {
-        let theme = cosmic::theme::active();
-        let cosmic = theme.cosmic();
-
-        Self {
-            yellow: cosmic.warning_color().into(),
-            red: cosmic.destructive_color().into(),
-        }
-    }
-
-    pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
-        if value >= critical {
-            Some(self.red)
-        } else if value >= warn {
-            Some(self.yellow)
-        } else {
-            None
-        }
-    }
 }
 
 struct SysInfo {
@@ -205,7 +178,7 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        let colors = ThemeColors::from_active_theme();
+        let colors = AppletColor::from_active_theme();
 
         let content = self
             .template
