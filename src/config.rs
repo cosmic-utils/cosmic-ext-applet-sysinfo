@@ -6,6 +6,11 @@ const CONFIG_VERSION: u64 = 1;
 
 pub(crate) const APP_ID: &str = "io.github.cosmic-utils.cosmic-ext-applet-sysinfo";
 
+/// Default display template. Used as the factory default and as the
+/// reset target when the user restores the template to its original state.
+pub(crate) const DEFAULT_TEMPLATE: &str =
+    "CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s";
+
 #[derive(Debug, Clone, CosmicConfigEntry)]
 pub(crate) struct SysInfoConfig {
     pub(crate) include_interfaces: Option<Vec<String>>,
@@ -29,7 +34,7 @@ impl Default for SysInfoConfig {
             exclude_interfaces: None,
             include_swap_in_ram: false,
             use_mono_font: false,
-            template: "CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s".to_string(),
+            template: DEFAULT_TEMPLATE.to_string(),
         }
     }
 }

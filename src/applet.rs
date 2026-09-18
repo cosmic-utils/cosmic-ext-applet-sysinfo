@@ -5,7 +5,7 @@ use tracing::{debug, trace};
 
 use crate::{
     color::AppletColor,
-    config::{APP_ID, Flags, SysInfoConfig},
+    config::{APP_ID, DEFAULT_TEMPLATE, Flags, SysInfoConfig},
     data, fl, template,
 };
 
@@ -39,6 +39,7 @@ pub(crate) enum Message {
     ToggleIncludeSwapWithRam(bool),
     ToggleUseMonoFont(bool),
     TemplateChanged(String),
+    RestoreTemplate,
 }
 
 impl cosmic::Application for SysInfo {
@@ -169,6 +170,16 @@ impl cosmic::Application for SysInfo {
                 }
                 self.update_template_cache();
             }
+            Message::RestoreTemplate => {
+                if let Some(handler) = &self.config_handler
+                    && let Err(error) = self
+                        .config
+                        .set_template(handler, DEFAULT_TEMPLATE.to_string())
+                {
+                    tracing::error!("failed to restore template: {error}")
+                }
+                self.update_template_cache();
+            }
             Message::Size(size) => {
                 self.size = size;
             }
@@ -213,11 +224,18 @@ impl cosmic::Application for SysInfo {
             .push(cosmic::widget::text::caption(fl!("use-mono-font-helper")))
             .spacing(4);
 
-        let template_input = cosmic::widget::column::with_capacity(2)
+        let template_input = cosmic::widget::column::with_capacity(3)
             .push(cosmic::widget::text::body(fl!("template-label")))
             .push(
                 cosmic::widget::text_input("", &self.config.template)
                     .on_input(Message::TemplateChanged),
+            )
+            .push(
+                cosmic::widget::button::custom(cosmic::widget::text::body(fl!(
+                    "restore-template-to-default-btn"
+                )))
+                .on_press(Message::RestoreTemplate)
+                .class(cosmic::theme::Button::Standard),
             )
             .spacing(4);
 
