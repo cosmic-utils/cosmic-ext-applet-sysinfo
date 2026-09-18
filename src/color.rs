@@ -14,15 +14,18 @@ impl AppletColor {
         let theme = cosmic::theme::active();
         let cosmic = theme.cosmic();
 
-        // Amber/yellow that is reliably distinct from red, regardless of theme.
+        // Amber that is reliably distinct from red, regardless of theme.
         const AMBER: Color = Color {
             r: 1.0,
-            g: 0.82,
+            g: 0.75,
             b: 0.0,
             a: 1.0,
         };
 
         Self {
+            // There's `cosmic.warning_color()`, which should in theory be a similar yellow color,
+            // but apparently no longer is. This might be a cosmic bug.
+            // See https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/pull/61
             yellow: AMBER,
             red: cosmic.destructive_color().into(),
         }
