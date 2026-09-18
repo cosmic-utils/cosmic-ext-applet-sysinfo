@@ -21,7 +21,7 @@
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
-- **Color-coded values** — metrics change color (normal → yellow → red) based on severity using COSMIC theme colors
+- **Colour-coded values** — metrics change colour (normal → yellow → red) based on severity using COSMIC theme colours
 
 ## Display Template
 
@@ -31,7 +31,7 @@ The applet uses a configurable template string to control what is displayed and 
 ~/.config/cosmic/io.github.cosmic-utils.cosmic-ext-applet-sysinfo/v1/template
 ```
 
-You can also put small reminders here 
+You can also put small reminders here
 <img width="1265" height="209" alt="image" src="https://github.com/user-attachments/assets/52d54fd8-16f5-4762-be28-b808b529c4fa" />
 
 
