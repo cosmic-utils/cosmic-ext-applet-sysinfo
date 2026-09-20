@@ -293,12 +293,9 @@ impl cosmic::Application for SysInfo {
             .push(cosmic::applet::padded_control(template_input))
             .padding([16, 0]);
 
-        if std::env::var_os("PATH")
-            .map(|paths| {
-                std::env::split_paths(&paths).any(|dir| dir.join("cosmic-monitor").is_file())
-            })
-            .unwrap_or(false)
-        {
+        if std::env::var_os("PATH").is_some_and(|paths| {
+            std::env::split_paths(&paths).any(|dir| dir.join("cosmic-monitor").exists())
+        }) {
             let open_monitor_button = cosmic::widget::button::text(fl!("open-monitor-menu-item"))
                 .on_press(Message::OpenMonitor);
             data = data.push(cosmic::applet::padded_control(open_monitor_button));
