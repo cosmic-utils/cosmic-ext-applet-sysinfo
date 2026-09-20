@@ -6,3 +6,4 @@ reset-template-to-default-button = Reset template to default
 reset-template-confirm = Reset to default?
 reset-confirm-yes = Yes
 reset-confirm-no = No
+open-monitor-menu-item = Open COSMIC Monitor

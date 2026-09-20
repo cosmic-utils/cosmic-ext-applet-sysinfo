@@ -36,6 +36,7 @@ pub(crate) enum Message {
     TemplateChanged(String),
     ResetTemplate,
     ConfirmReset(bool),
+    OpenMonitor,
 }
 
 impl cosmic::Application for SysInfo {
@@ -197,6 +198,13 @@ impl cosmic::Application for SysInfo {
             Message::ConfirmReset(false) => {
                 self.confirm_reset = false;
             }
+            Message::OpenMonitor => match std::process::Command::new("cosmic-monitor").spawn() {
+                Ok(_) => tracing::info!("Launched `cosmic-monitor`"),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    tracing::warn!("`cosmic-monitor` binary not found on PATH");
+                }
+                Err(error) => tracing::error!("Failed to launch `cosmic-monitor`: {error}"),
+            },
         }
 
         cosmic::task::none()
@@ -279,11 +287,19 @@ impl cosmic::Application for SysInfo {
 
         let template_input = template_input.push(reset_button).spacing(4);
 
-        let data = cosmic::widget::column::with_capacity(3)
+        let mut data = cosmic::widget::column::with_capacity(4)
             .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
             .push(cosmic::applet::padded_control(use_mono_font_toggler))
             .push(cosmic::applet::padded_control(template_input))
             .padding([16, 0]);
+
+        if std::env::var_os("PATH").is_some_and(|paths| {
+            std::env::split_paths(&paths).any(|dir| dir.join("cosmic-monitor").exists())
+        }) {
+            let open_monitor_button = cosmic::widget::button::text(fl!("open-monitor-menu-item"))
+                .on_press(Message::OpenMonitor);
+            data = data.push(cosmic::applet::padded_control(open_monitor_button));
+        }
 
         self.core
             .applet
