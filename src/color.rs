@@ -2,32 +2,31 @@ use cosmic::iced::Color;
 
 /// Color scheme for the applet's threshold indicators.
 ///
-/// `yellow` is used for warning states (amber to ensure distinction from red).
+/// `yellow` is used for warning states.
 /// `red` is used for critical/destructive states.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AppletColor {
-    pub(crate) yellow: Color,
-    pub(crate) red: Color,
+    /// Warning threshold colour (yellow).
+    pub(crate) warn: Color,
+    /// Critical/threshold colour (red).
+    pub(crate) critical: Color,
 }
 
 impl AppletColor {
-    pub(crate) fn from_active_theme() -> Self {
-        let theme = cosmic::theme::active();
-        let cosmic = theme.cosmic();
-
-        // Amber that is reliably distinct from red, regardless of theme.
-        const AMBER: Color = Color {
-            r: 1.0,
-            g: 0.75,
-            b: 0.0,
-            a: 1.0,
-        };
-
+    pub(crate) fn new() -> Self {
         Self {
-            // There's `cosmic.warning_color()`, which should in theory be a similar yellow color,
-            // but apparently no longer is. This might be a cosmic bug.
-            // See https://github.com/cosmic-utils/cosmic-ext-applet-sysinfo/pull/61
-            yellow: AMBER,
-            red: cosmic.destructive_color().into(),
+            warn: Color {
+                r: 0.96862745,
+                g: 0.8784314,
+                b: 0.38431373,
+                a: 1.0,
+            },
+            critical: Color {
+                r: 0.99215686,
+                g: 0.6313726,
+                b: 0.627451,
+                a: 1.0,
+            },
         }
     }
 
@@ -38,9 +37,9 @@ impl AppletColor {
     /// - otherwise           → None (normal)
     pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
         if value >= critical {
-            Some(self.red)
+            Some(self.critical)
         } else if value >= warn {
-            Some(self.yellow)
+            Some(self.warn)
         } else {
             None
         }

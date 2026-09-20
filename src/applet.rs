@@ -211,7 +211,7 @@ impl cosmic::Application for SysInfo {
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        let colors = AppletColor::from_active_theme();
+        let colors = AppletColor::new();
 
         let content = self
             .template

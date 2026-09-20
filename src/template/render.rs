@@ -28,7 +28,7 @@ impl Template {
                     let (text, color) = self.resolve_variable(*var, data, colors);
                     span(text).color_maybe(color)
                 }
-                Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.red),
+                Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.critical),
             })
             .map(|segment| {
                 if use_mono_font {
