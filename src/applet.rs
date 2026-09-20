@@ -204,7 +204,7 @@ impl cosmic::Application for SysInfo {
                     tracing::warn!("`cosmic-monitor` binary not found on PATH");
                 }
                 Err(error) => tracing::error!("Failed to launch `cosmic-monitor`: {error}"),
-            }
+            },
         }
 
         cosmic::task::none()
