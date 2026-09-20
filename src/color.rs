@@ -14,6 +14,9 @@ pub(crate) struct AppletColor {
 
 impl AppletColor {
     pub(crate) fn new() -> Self {
+        let theme = cosmic::theme::active();
+        let cosmic = theme.cosmic();
+
         Self {
             warn: Color {
                 r: 0.96862745,
@@ -21,12 +24,7 @@ impl AppletColor {
                 b: 0.38431373,
                 a: 1.0,
             },
-            critical: Color {
-                r: 0.99215686,
-                g: 0.6313726,
-                b: 0.627451,
-                a: 1.0,
-            },
+            critical: cosmic.destructive_color().into(),
         }
     }
 
