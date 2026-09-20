@@ -1,4 +1,5 @@
 mod applet;
+mod color;
 mod config;
 mod data;
 mod i18n;

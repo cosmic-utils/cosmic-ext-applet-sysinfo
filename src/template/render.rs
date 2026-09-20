@@ -7,6 +7,7 @@ use cosmic::iced::{
 
 use crate::{
     applet,
+    color::AppletColor,
     data::Data,
     template::{Segment, Template, Variable},
 };
@@ -15,7 +16,7 @@ impl Template {
     pub(crate) fn render<'a, Theme: text::Catalog + 'a>(
         &'a self,
         data: &'a Data,
-        colors: &applet::ThemeColors,
+        colors: &AppletColor,
         use_mono_font: bool,
     ) -> text::Rich<'a, (), applet::Message, Theme> {
         let spans: Vec<_> = self
@@ -45,7 +46,7 @@ impl Template {
         &self,
         var: Variable,
         data: &'data Data,
-        colors: &applet::ThemeColors,
+        colors: &AppletColor,
     ) -> (Cow<'data, str>, Option<Color>) {
         match var {
             Variable::CpuUsage => match data.cpu_usage {

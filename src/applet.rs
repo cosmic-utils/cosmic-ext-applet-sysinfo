@@ -1,71 +1,41 @@
 use std::{str::FromStr, time::Duration};
 
-use cosmic::iced::{Color, Rectangle, Size, event::listen_with};
 use tracing::{debug, trace};
 
 use crate::{
-    config::{APP_ID, Flags, SysInfoConfig},
-    data, fl, template,
+    color::AppletColor,
+    config::{APP_ID, DEFAULT_TEMPLATE, Flags, SysInfoConfig},
+    data::{self, Data},
+    fl,
+    template::Template,
 };
 
 pub(crate) fn run() -> cosmic::iced::Result {
     cosmic::applet::run::<SysInfo>(Flags::new())
 }
 
-/// The colours used in the UI (mainly for the template right now)
-pub(crate) struct ThemeColors {
-    pub(crate) yellow: Color,
-    pub(crate) red: Color,
-}
-
-impl ThemeColors {
-    fn from_active_theme() -> Self {
-        let theme = cosmic::theme::active();
-        let cosmic = theme.cosmic();
-
-        Self {
-            yellow: cosmic.warning_color().into(),
-            red: cosmic.destructive_color().into(),
-        }
-    }
-
-    pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
-        if value >= critical {
-            Some(self.red)
-        } else if value >= warn {
-            Some(self.yellow)
-        } else {
-            None
-        }
-    }
-}
-
 struct SysInfo {
     core: cosmic::app::Core,
+    size: cosmic::iced::Size,
     popup: Option<cosmic::iced::window::Id>,
     config: SysInfoConfig,
     config_handler: Option<cosmic::cosmic_config::Config>,
     data: data::Data,
-    template: template::Template,
-    size: Size,
-}
-
-impl SysInfo {
-    fn update_template_cache(&mut self) {
-        let Ok(template) = template::Template::from_str(&self.config.template);
-        self.template = template;
-    }
+    template: Template,
+    confirm_reset: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Message {
-    Size(Size),
     Tick,
+    Size(cosmic::iced::Size),
     ToggleWindow,
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
     ToggleUseMonoFont(bool),
     TemplateChanged(String),
+    ResetTemplate,
+    ConfirmReset(bool),
     OpenMonitor,
 }
 
@@ -81,8 +51,8 @@ impl cosmic::Application for SysInfo {
         flags: Self::Flags,
     ) -> (Self, cosmic::app::Task<Self::Message>) {
         let config = flags.config;
-        let data = data::Data::new(&config);
-        let Ok(template) = template::Template::from_str(&config.template);
+        let data = Data::new(&config);
+        let Ok(template) = Template::from_str(&config.template);
 
         (
             Self {
@@ -92,10 +62,11 @@ impl cosmic::Application for SysInfo {
                 config_handler: flags.config_handler,
                 data,
                 template,
-                size: Size {
+                size: cosmic::iced::Size {
                     width: 10.,
                     height: 10.,
                 },
+                confirm_reset: false,
             },
             cosmic::task::none(),
         )
@@ -112,7 +83,7 @@ impl cosmic::Application for SysInfo {
     fn subscription(&self) -> cosmic::iced::Subscription<Message> {
         cosmic::iced::Subscription::batch([
             cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
-            listen_with(|event, _status, id| {
+            cosmic::iced::event::listen_with(|event, _status, id| {
                 if let cosmic::iced::Event::Window(
                     cosmic::iced::window::Event::Resized(size)
                     | cosmic::iced::window::Event::Opened { position: _, size },
@@ -164,7 +135,7 @@ impl cosmic::Application for SysInfo {
                     None,
                     None,
                 );
-                popup_settings.positioner.anchor_rect = Rectangle::<i32> {
+                popup_settings.positioner.anchor_rect = cosmic::iced::Rectangle::<i32> {
                     x: 0,
                     y: 0,
                     width: self.size.width as i32,
@@ -193,12 +164,39 @@ impl cosmic::Application for SysInfo {
                 }
             }
             Message::TemplateChanged(value) => {
-                if let Some(handler) = &self.config_handler
-                    && let Err(error) = self.config.set_template(handler, value)
-                {
-                    tracing::error!("failed to set template: {error}")
+                if let Some(handler) = &self.config_handler {
+                    match Template::from_str(&value) {
+                        Ok(parsed) => {
+                            if let Err(error) = self.config.set_template(handler, value) {
+                                tracing::error!("failed to set template: {error}");
+                            } else {
+                                self.template = parsed;
+                            }
+                        }
+                        Err(error) => {
+                            tracing::error!("invalid template: {error}");
+                        }
+                    }
                 }
-                self.update_template_cache();
+            }
+            Message::ResetTemplate => {
+                self.confirm_reset = true;
+            }
+            Message::ConfirmReset(true) => {
+                if let Some(handler) = &self.config_handler
+                    && let Err(error) = self
+                        .config
+                        .set_template(handler, DEFAULT_TEMPLATE.to_string())
+                {
+                    tracing::error!("failed to restore template: {error}");
+                } else {
+                    self.template = Template::from_str(DEFAULT_TEMPLATE)
+                        .expect("DEFAULT_TEMPLATE should always be a valid template");
+                    self.confirm_reset = false;
+                }
+            }
+            Message::ConfirmReset(false) => {
+                self.confirm_reset = false;
             }
             Message::OpenMonitor => match std::process::Command::new("cosmic-monitor").spawn() {
                 Ok(_) => tracing::info!("Launched `cosmic-monitor`"),
@@ -206,14 +204,14 @@ impl cosmic::Application for SysInfo {
                     tracing::warn!("`cosmic-monitor` binary not found on PATH");
                 }
                 Err(error) => tracing::error!("Failed to launch `cosmic-monitor`: {error}"),
-            },
+            }
         }
 
         cosmic::task::none()
     }
 
     fn view(&self) -> cosmic::Element<'_, Message> {
-        let colors = ThemeColors::from_active_theme();
+        let colors = AppletColor::from_active_theme();
 
         let content = self
             .template
@@ -248,13 +246,46 @@ impl cosmic::Application for SysInfo {
             .push(cosmic::widget::text::caption(fl!("use-mono-font-helper")))
             .spacing(4);
 
-        let template_input = cosmic::widget::column::with_capacity(2)
+        let template_input = cosmic::widget::column::with_capacity(3)
             .push(cosmic::widget::text::body(fl!("template-label")))
             .push(
                 cosmic::widget::text_input("", &self.config.template)
                     .on_input(Message::TemplateChanged),
-            )
-            .spacing(4);
+            );
+
+        let reset_button: cosmic::Element<'_, Message> = if self.confirm_reset {
+            cosmic::widget::column::with_capacity(3)
+                .push(cosmic::widget::text::body(fl!("reset-template-confirm")))
+                .push(
+                    cosmic::widget::row::with_capacity(2)
+                        .push(
+                            cosmic::widget::button::custom(cosmic::widget::text::body(fl!(
+                                "reset-confirm-yes"
+                            )))
+                            .on_press(Message::ConfirmReset(true))
+                            .class(cosmic::theme::Button::Destructive),
+                        )
+                        .push(
+                            cosmic::widget::button::custom(cosmic::widget::text::body(fl!(
+                                "reset-confirm-no"
+                            )))
+                            .on_press(Message::ConfirmReset(false))
+                            .class(cosmic::theme::Button::Standard),
+                        )
+                        .spacing(8),
+                )
+                .spacing(8)
+                .into()
+        } else {
+            cosmic::widget::button::custom(cosmic::widget::text::body(fl!(
+                "reset-template-to-default-button"
+            )))
+            .on_press(Message::ResetTemplate)
+            .class(cosmic::theme::Button::Standard)
+            .into()
+        };
+
+        let template_input = template_input.push(reset_button).spacing(4);
 
         let mut data = cosmic::widget::column::with_capacity(4)
             .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
