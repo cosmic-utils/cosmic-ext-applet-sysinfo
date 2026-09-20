@@ -200,17 +200,13 @@ impl cosmic::Application for SysInfo {
                 }
                 self.update_template_cache();
             }
-            Message::OpenMonitor => {
-                // Launch cosmic-monitor if it exists
-                if std::path::Path::new("/usr/bin/cosmic-monitor").exists() {
-                    match std::process::Command::new("/usr/bin/cosmic-monitor").spawn() {
-                        Ok(_) => tracing::info!("Launched `cosmic-monitor`"),
-                        Err(error) => tracing::error!("Failed to launch `cosmic-monitor`: {error}"),
-                    }
-                } else {
-                    tracing::warn!("`cosmic-monitor` binary not found at `/usr/bin/cosmic-monitor`");
+            Message::OpenMonitor => match std::process::Command::new("cosmic-monitor").spawn() {
+                Ok(_) => tracing::info!("Launched `cosmic-monitor`"),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    tracing::warn!("`cosmic-monitor` binary not found on PATH");
                 }
-            }
+                Err(error) => tracing::error!("Failed to launch `cosmic-monitor`: {error}"),
+            },
         }
 
         cosmic::task::none()
@@ -260,19 +256,20 @@ impl cosmic::Application for SysInfo {
             )
             .spacing(4);
 
-        // Add conditional Open COSMIC Monitor button
-        let open_monitor_button = cosmic::widget::button::text(fl!("open-monitor-menu-item"))
-            .on_press(Message::OpenMonitor);
-
-        // Build the data column with conditional monitor button
         let mut data = cosmic::widget::column::with_capacity(4)
             .push(cosmic::applet::padded_control(include_swap_in_ram_toggler))
             .push(cosmic::applet::padded_control(use_mono_font_toggler))
             .push(cosmic::applet::padded_control(template_input))
             .padding([16, 0]);
 
-        // Add monitor button only if binary exists
-        if std::path::Path::new("/usr/bin/cosmic-monitor").exists() {
+        if std::env::var_os("PATH")
+            .map(|paths| {
+                std::env::split_paths(&paths).any(|dir| dir.join("cosmic-monitor").is_file())
+            })
+            .unwrap_or(false)
+        {
+            let open_monitor_button = cosmic::widget::button::text(fl!("open-monitor-menu-item"))
+                .on_press(Message::OpenMonitor);
             data = data.push(cosmic::applet::padded_control(open_monitor_button));
         }
 
