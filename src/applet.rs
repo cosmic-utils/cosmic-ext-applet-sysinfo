@@ -208,7 +208,7 @@ impl cosmic::Application for SysInfo {
                         Err(error) => tracing::error!("Failed to launch cosmic-monitor: {error}"),
                     }
                 } else {
-                    tracing::warn!("cosmic-monitor binary not found at /usr/bin/cosmic-monitor");
+                    tracing::warn!("`cosmic-monitor` binary not found at `/usr/bin/cosmic-monitor`");
                 }
             }
         }
