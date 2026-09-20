@@ -204,7 +204,7 @@ impl cosmic::Application for SysInfo {
                 // Launch cosmic-monitor if it exists
                 if std::path::Path::new("/usr/bin/cosmic-monitor").exists() {
                     match std::process::Command::new("/usr/bin/cosmic-monitor").spawn() {
-                        Ok(_) => tracing::info!("Launched cosmic-monitor"),
+                        Ok(_) => tracing::info!("Launched `cosmic-monitor`"),
                         Err(error) => tracing::error!("Failed to launch cosmic-monitor: {error}"),
                     }
                 } else {
