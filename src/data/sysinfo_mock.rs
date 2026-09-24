@@ -46,7 +46,7 @@ pub struct Component {
 
 impl Component {
     pub fn label(&self) -> &str {
-        &self.label
+        self.label
     }
 
     pub fn temperature(&self) -> Option<f32> {
