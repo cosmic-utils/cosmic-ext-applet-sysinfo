@@ -22,6 +22,7 @@ struct SysInfo {
     config_handler: Option<cosmic::cosmic_config::Config>,
     data: data::Data,
     template: Template,
+    template_content: cosmic::widget::text_editor::Content,
     confirm_reset: bool,
 }
 
@@ -33,7 +34,7 @@ pub(crate) enum Message {
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
     ToggleUseMonoFont(bool),
-    TemplateChanged(String),
+    TemplateEdited(cosmic::widget::text_editor::Action),
     ResetTemplate,
     ConfirmReset(bool),
     OpenMonitor,
@@ -53,6 +54,7 @@ impl cosmic::Application for SysInfo {
         let config = flags.config;
         let data = Data::new(&config);
         let Ok(template) = Template::from_str(&config.template);
+        let template_content = cosmic::widget::text_editor::Content::with_text(&config.template);
 
         (
             Self {
@@ -62,6 +64,7 @@ impl cosmic::Application for SysInfo {
                 config_handler: flags.config_handler,
                 data,
                 template,
+                template_content,
                 size: cosmic::iced::Size {
                     width: 10.,
                     height: 10.,
@@ -129,7 +132,9 @@ impl cosmic::Application for SysInfo {
                 self.popup.replace(new_id);
 
                 let mut popup_settings = self.core.applet.get_popup_settings(
-                    self.core.main_window_id().unwrap(),
+                    self.core
+                        .main_window_id()
+                        .expect("applet should always have a main window"),
                     new_id,
                     None,
                     None,
@@ -153,7 +158,7 @@ impl cosmic::Application for SysInfo {
                 if let Some(handler) = &self.config_handler
                     && let Err(error) = self.config.set_include_swap_in_ram(handler, value)
                 {
-                    tracing::error!("{error}")
+                    tracing::error!("failed to toggle `include_swap_in_ram`: {error}")
                 }
             }
             Message::ToggleUseMonoFont(value) => {
@@ -163,8 +168,17 @@ impl cosmic::Application for SysInfo {
                     tracing::error!("failed to toggle `use_mono_font`: {error}")
                 }
             }
-            Message::TemplateChanged(value) => {
+            Message::TemplateEdited(action) => {
+                // Only re-sync/re-persist on actual edits; navigation (arrow keys, cursor moves)
+                // shouldn't rewrite the config
+                let is_edit = action.is_edit();
+                self.template_content.perform(action);
+                if !is_edit {
+                    return cosmic::task::none();
+                }
+
                 if let Some(handler) = &self.config_handler {
+                    let value = self.template_content.text();
                     match Template::from_str(&value) {
                         Ok(parsed) => {
                             if let Err(error) = self.config.set_template(handler, value) {
@@ -192,6 +206,8 @@ impl cosmic::Application for SysInfo {
                 } else {
                     self.template = Template::from_str(DEFAULT_TEMPLATE)
                         .expect("DEFAULT_TEMPLATE should always be a valid template");
+                    self.template_content =
+                        cosmic::widget::text_editor::Content::with_text(DEFAULT_TEMPLATE);
                     self.confirm_reset = false;
                 }
             }
@@ -249,8 +265,11 @@ impl cosmic::Application for SysInfo {
         let template_input = cosmic::widget::column::with_capacity(3)
             .push(cosmic::widget::text::body(fl!("template-label")))
             .push(
-                cosmic::widget::text_input("", &self.config.template)
-                    .on_input(Message::TemplateChanged),
+                cosmic::widget::text_editor::text_editor(&self.template_content)
+                    .on_action(Message::TemplateEdited)
+                    .min_height(40.0)
+                    .max_height(300.0)
+                    .padding([8, 12]),
             );
 
         let reset_button: cosmic::Element<'_, Message> = if self.confirm_reset {
