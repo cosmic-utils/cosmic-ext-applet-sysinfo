@@ -1,4 +1,4 @@
-//! A helper module to mock the interface of `sysinfo` for testing.
+//! Helper module to mock the interface of `sysinfo` for testing.
 //! Mainly there to allow constructing `Components` by hand.
 
 pub struct Components(Vec<Component>);
@@ -40,7 +40,7 @@ impl<'a> IntoIterator for &'a Components {
 
 pub struct Component {
     pub label: &'static str,
-    // the original is `Option<f64>`, but this is simplified to help with mocking
+    // The original is `Option<f64>`, but this is simplified to help with mocking
     pub temperature: f32,
 }
 

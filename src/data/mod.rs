@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod sysinfo_mock;
+
 #[cfg(not(test))]
 use sysinfo::Components;
 #[cfg(test)]
@@ -164,7 +165,7 @@ struct NvidiaSmi {
 }
 
 pub(crate) struct Gpu {
-    // sampling state for `refresh_xe_usage`
+    // Sampling state for `refresh_xe_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
 
@@ -196,7 +197,7 @@ impl Gpu {
             return;
         }
 
-        // lazy nvidia-smi: spawned at most once
+        // Lazy nvidia-smi: spawned at most once
         let nvidia = LazyCell::new(Self::query_nvidia_smi);
 
         self.temp = if needs_temp {
@@ -319,7 +320,6 @@ impl Gpu {
         // The query becomes a two-call pattern: with `size = 0` the kernel only
         // fills in the required size, then a second call fetches the data.
         // On render nodes not driven by xe the first call fails.
-
         let mut query = DrmXeDeviceQuery {
             query: DRM_XE_DEVICE_QUERY_MEM_REGIONS,
             ..Default::default()
@@ -552,6 +552,7 @@ impl Data {
 
         // Crate sysinfo system refresh
         let mut refresh = RefreshKind::nothing();
+
         if needs_cpu {
             refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_cpu_usage());
         }
@@ -747,7 +748,6 @@ impl Data {
     }
 
     /// Fetch a public IP address from icanhazip.com.
-    ///
     fn fetch_public_ip(version: IpVersion) -> Option<String> {
         // `attohttpc` cannot force a specific IP version on the resolver, so we
         // rely on the version-specific subdomains exposed by icanhazip.com.
@@ -782,8 +782,7 @@ mod test {
                 temperature: 1.0,
             }]);
 
-            // do match on the component, even though `k10temp` is only a _part_
-            // of its name
+            // Do match on the component, even though `k10temp` is only a _part_ of its name
             assert_eq!(Data::find_cpu_temp(&components), Some(1.0));
         }
 
@@ -816,8 +815,7 @@ mod test {
                 temperature: 1.0,
             }]);
 
-            // do match on the component, even though `amdgpu` is only a _part_
-            // of its name
+            // Do match on the component, even though `amdgpu` is only a _part_ of its name
             assert_eq!(Gpu::find_temp(&components), Some(1.0));
         }
 
@@ -834,7 +832,7 @@ mod test {
                 },
             ]);
 
-            // choose `junction` over `mem` despite `mem` coming earlier
+            // Choose `junction` over `mem` despite `mem` coming earlier
             // in `components`, because `junction` comes earlier in `LABELS`
             assert_eq!(Gpu::find_temp(&components), Some(2.0));
         }
@@ -852,7 +850,7 @@ mod test {
                 },
             ]);
 
-            // prefer the xe die temperature `pkg` over the memory one `vram`
+            // Prefer the xe die temperature `pkg` over the memory one `vram`
             assert_eq!(Gpu::find_temp(&components), Some(2.0));
         }
     }
