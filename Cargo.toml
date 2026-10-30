@@ -31,8 +31,8 @@ i18n-embed-fl = { version = "0.10.1", default-features = false }
 libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = false, features = [
 	"applet",
 ] }
-rust-embed = { version = "8.12.0", default-features = false }
-rustix = { version = "1.1.4", default-features = false, features = ["std"] }
+rust-embed = { version = "8.13.0", default-features = false }
+rustix = { version = "1.1.6", default-features = false, features = ["std"] }
 sysinfo = { version = "0.39.6", default-features = false, features = [
 	"system",
 	"network",
@@ -46,4 +46,4 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 ] }
 
 [dev-dependencies]
-insta = "1.48.0"
+insta = "1.49.0"
