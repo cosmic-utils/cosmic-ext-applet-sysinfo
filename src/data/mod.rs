@@ -229,8 +229,9 @@ impl Gpu {
         LABELS.into_iter().find_map(|l| {
             components
                 .iter()
-                .find(|c| c.label().to_lowercase().contains(l))
-                .and_then(|c| c.temperature())
+                .filter(|c| c.label().to_lowercase().contains(l))
+                .filter_map(|c| c.temperature())
+                .max_by(f32::total_cmp)
         })
     }
 
@@ -717,8 +718,9 @@ impl Data {
         LABELS.into_iter().find_map(|l| {
             components
                 .iter()
-                .find(|c| c.label().to_lowercase().contains(l))
-                .and_then(|c| c.temperature())
+                .filter(|c| c.label().to_lowercase().contains(l))
+                .filter_map(|c| c.temperature())
+                .max_by(f32::total_cmp)
         })
     }
 
@@ -784,6 +786,28 @@ mod test {
 
             // Do match on the component, even though `k10temp` is only a _part_ of its name
             assert_eq!(Data::find_cpu_temp(&components), Some(1.0));
+        }
+
+        #[test]
+        fn hottest_sensor_wins() {
+            let components = Components::from(vec![
+                Component {
+                    label: "coretemp Core 0",
+                    temperature: 1.0,
+                },
+                Component {
+                    label: "coretemp Core 1",
+                    temperature: 3.0,
+                },
+                Component {
+                    label: "coretemp Package id 0",
+                    temperature: 2.0,
+                },
+            ]);
+
+            // Report the hotspot (max of the device's sensors), not whichever
+            // sensor is enumerated first
+            assert_eq!(Data::find_cpu_temp(&components), Some(3.0));
         }
 
         #[test]
