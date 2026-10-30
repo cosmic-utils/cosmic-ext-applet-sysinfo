@@ -4,8 +4,8 @@
 pub struct Components(Vec<Component>);
 
 impl Components {
-    pub fn new_with_refreshed_list() -> Self {
-        Self(vec![])
+    pub fn new_with_refreshed_list() -> Result<Self, std::convert::Infallible> {
+        Ok(Self(vec![]))
     }
 
     pub fn list(&self) -> &[Component] {

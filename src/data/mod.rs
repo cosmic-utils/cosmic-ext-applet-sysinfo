@@ -47,7 +47,8 @@ impl Disk {
             write: None,
             used: None,
             usage: None,
-            disks: sysinfo::Disks::new_with_refreshed_list(),
+            disks: sysinfo::Disks::new_with_refreshed_list()
+                .expect("failed to initialise disk list"),
         }
     }
 
@@ -57,7 +58,7 @@ impl Disk {
         let (mut read, mut write) = (0u64, 0u64);
         let (mut total, mut available) = (0, 0);
 
-        for disk in self.disks.list() {
+        for disk in &self.disks {
             if !seen.insert(disk.name()) {
                 continue;
             }
@@ -492,9 +493,10 @@ pub(crate) struct Data {
 
 impl Data {
     pub(crate) fn new(config: &SysInfoConfig) -> Self {
-        let system = System::new_with_specifics(RefreshKind::nothing());
-        let networks = Networks::new_with_refreshed_list();
-        let components = Components::new_with_refreshed_list();
+        let system = System::new_with_specifics(RefreshKind::nothing())
+            .expect("failed to initialise sysinfo");
+        let networks = Networks::new_with_refreshed_list().expect("failed to list networks");
+        let components = Components::new_with_refreshed_list().expect("failed to list components");
         let physical_interfaces = Self::detect_physical_interfaces(config);
         let npu_data = Npu::new();
         let disks_data = Disk::new();
@@ -555,7 +557,7 @@ impl Data {
         let mut refresh = RefreshKind::nothing();
 
         if needs_cpu {
-            refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_cpu_usage());
+            refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_usage());
         }
         if needs_ram {
             let mem = if config.include_swap_in_ram {
@@ -586,7 +588,7 @@ impl Data {
             self.networks.refresh(true);
             let (mut up, mut down) = (0u64, 0u64);
             for (name, iface) in self.networks.iter() {
-                if self.physical_interfaces.contains(name) {
+                if self.physical_interfaces.iter().any(|p| p.as_str() == name) {
                     up += iface.transmitted();
                     down += iface.received();
                 }

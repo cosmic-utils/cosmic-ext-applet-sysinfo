@@ -33,7 +33,7 @@ libcosmic = { git = "https://github.com/pop-os/libcosmic", default-features = fa
 ] }
 rust-embed = { version = "8.13.0", default-features = false }
 rustix = { version = "1.1.6", default-features = false, features = ["std"] }
-sysinfo = { version = "0.39.6", default-features = false, features = [
+sysinfo = { version = "0.40.1", default-features = false, features = [
 	"system",
 	"network",
 	"component",
