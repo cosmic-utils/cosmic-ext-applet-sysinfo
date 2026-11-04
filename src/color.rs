@@ -1,14 +1,11 @@
 use cosmic::iced::Color;
 
-/// Color scheme for the applet's threshold indicators.
-///
-/// `yellow` is used for warning states.
-/// `red` is used for critical/destructive states.
+/// Threshold colors from the active COSMIC theme.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AppletColor {
-    /// Warning threshold colour (yellow).
+    /// Warning threshold color.
     pub(crate) warn: Color,
-    /// Critical/threshold colour (red).
+    /// Critical/destructive threshold color.
     pub(crate) critical: Color,
 }
 
@@ -18,20 +15,15 @@ impl AppletColor {
         let cosmic = theme.cosmic();
 
         Self {
-            warn: Color {
-                r: 0.96862745,
-                g: 0.8784314,
-                b: 0.38431373,
-                a: 1.0,
-            },
+            warn: cosmic.palette.accent_yellow.into(),
             critical: cosmic.destructive_color().into(),
         }
     }
 
     /// Return `Some(color)` if `value` crosses a threshold, else `None`.
     ///
-    /// - `value >= critical` → red
-    /// - `value >= warn`     → yellow
+    /// - `value >= critical` → critical color
+    /// - `value >= warn`     → warning color
     /// - otherwise           → None (normal)
     pub(crate) fn threshold(&self, value: f64, warn: f64, critical: f64) -> Option<Color> {
         if value >= critical {
