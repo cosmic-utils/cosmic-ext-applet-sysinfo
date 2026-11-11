@@ -622,14 +622,20 @@ impl Gpu {
     /// runtime-suspended: `nvidia-smi` would wake them up, and a laptop's
     /// discrete GPU would then never go back to sleep while the applet runs.
     fn query_nvidia(cards: &[DrmCard]) -> Option<NvidiaSmi> {
-        let mut nvidia = cards
-            .iter()
-            .filter(|c| c.vendor == PCI_VENDOR_NVIDIA)
-            .peekable();
-        if nvidia.peek().is_some() && nvidia.all(DrmCard::is_runtime_suspended) {
+        if Self::all_nvidia_suspended(cards) {
             return Some(NvidiaSmi::suspended());
         }
         Self::query_nvidia_smi()
+    }
+
+    /// Whether there is at least one NVIDIA GPU and every one of them is
+    /// runtime-suspended.
+    fn all_nvidia_suspended<'a>(cards: impl IntoIterator<Item = &'a DrmCard>) -> bool {
+        let mut nvidia = cards
+            .into_iter()
+            .filter(|c| c.vendor == PCI_VENDOR_NVIDIA)
+            .peekable();
+        nvidia.peek().is_some() && nvidia.all(DrmCard::is_runtime_suspended)
     }
 
     fn query_nvidia_smi() -> Option<NvidiaSmi> {
@@ -1172,6 +1178,54 @@ mod test {
             assert_eq!(stats.usage, Some(0));
             assert_eq!(stats.vram_usage, Some(0));
             assert_eq!(stats.temp, None);
+        }
+
+        #[test]
+        fn nvidia_suspension() {
+            let drm = FakeDrm::new("nvidia-suspension");
+            drm.write("card0", "vendor", "0x1002\n")
+                .write("card0", "power/runtime_status", "suspended\n")
+                .write("card1", "vendor", "0x10de\n")
+                .write("card1", "power/runtime_status", "active\n")
+                .write("card2", "vendor", "0x10de\n")
+                .write("card2", "power/runtime_status", "suspended\n");
+            let cards = DrmCard::scan_in(&drm.0);
+            let [amd, nv_active, nv_suspended] = cards.as_slice() else {
+                panic!("expected three cards");
+            };
+            let suspended = |cards: &[&DrmCard]| Gpu::all_nvidia_suspended(cards.iter().copied());
+
+            // no NVIDIA GPU at all: nothing to skip
+            assert!(!suspended(&[]));
+            assert!(!suspended(&[amd]));
+            // a suspended AMD GPU does not matter
+            assert!(!suspended(&[amd, nv_active]));
+            // a single awake NVIDIA GPU means querying nvidia-smi
+            assert!(!suspended(&[nv_active, nv_suspended]));
+            assert!(suspended(&[amd, nv_suspended]));
+        }
+
+        #[test]
+        fn missing_attributes() {
+            let drm = FakeDrm::new("missing");
+            drm.write("card0", "vendor", "0x8086\n")
+                .write("card0", "mem_info_vram_used", "0\n")
+                .write("card0", "mem_info_vram_total", "0\n");
+
+            let cards = DrmCard::scan_in(&drm.0);
+            assert_eq!(cards[0].vendor, PCI_VENDOR_INTEL);
+            assert_eq!(cards[0].busy_percent(), None);
+            // a zero total is not a division by zero
+            assert_eq!(cards[0].vram_usage(), None);
+            assert_eq!(cards[0].hottest_temp(), None);
+            // without runtime PM attributes the GPU is considered awake
+            assert!(!cards[0].is_runtime_suspended());
+        }
+
+        #[test]
+        fn scan_missing_directory() {
+            let drm = FakeDrm::new("missing-dir");
+            assert!(DrmCard::scan_in(&drm.0.join("nope")).is_empty());
         }
     }
 

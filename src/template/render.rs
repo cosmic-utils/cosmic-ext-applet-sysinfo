@@ -151,3 +151,43 @@ fn gpu_percent<'a>(value: Option<u64>, colors: &AppletColor) -> (Cow<'a, str>, O
         None => ("--%".into(), None),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const COLORS: AppletColor = AppletColor {
+        warn: Color::from_rgb(1.0, 1.0, 0.0),
+        critical: Color::from_rgb(1.0, 0.0, 0.0),
+    };
+
+    #[test]
+    fn gpu_temp_format_and_thresholds() {
+        assert_eq!(gpu_temp(None, &COLORS), ("--°C".into(), None));
+        assert_eq!(gpu_temp(Some(5.4), &COLORS), (" 5°C".into(), None));
+        assert_eq!(gpu_temp(Some(59.4), &COLORS), ("59°C".into(), None));
+        assert_eq!(
+            gpu_temp(Some(60.0), &COLORS),
+            ("60°C".into(), Some(COLORS.warn))
+        );
+        assert_eq!(
+            gpu_temp(Some(85.0), &COLORS),
+            ("85°C".into(), Some(COLORS.critical))
+        );
+    }
+
+    #[test]
+    fn gpu_percent_format_and_thresholds() {
+        assert_eq!(gpu_percent(None, &COLORS), ("--%".into(), None));
+        // a suspended NVIDIA GPU is reported as 0%
+        assert_eq!(gpu_percent(Some(0), &COLORS), (" 0%".into(), None));
+        assert_eq!(
+            gpu_percent(Some(50), &COLORS),
+            ("50%".into(), Some(COLORS.warn))
+        );
+        assert_eq!(
+            gpu_percent(Some(100), &COLORS),
+            ("100%".into(), Some(COLORS.critical))
+        );
+    }
+}
