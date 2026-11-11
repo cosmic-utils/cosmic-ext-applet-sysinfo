@@ -18,7 +18,7 @@
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** — reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
 - **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
-- **Per-vendor GPU metrics** — on systems with several GPUs (e.g. a laptop with an integrated AMD/Intel GPU and a discrete NVIDIA one), show each GPU separately. A runtime-suspended NVIDIA GPU is reported as idle without querying `nvidia-smi`, so the applet does not keep waking it up
+- **Per-vendor GPU metrics** — on systems with several GPUs (e.g. a laptop with an integrated AMD/Intel GPU and a discrete NVIDIA one), show each GPU separately. A runtime-suspended NVIDIA GPU is reported as idle without querying `nvidia-smi`, and an idle one is queried less often, so the applet does not keep it awake
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
@@ -76,7 +76,7 @@ When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
 CPU {cpu_usage} | AMD {amd_gpu_usage} {amd_gpu_temp} | NVIDIA {nvidia_gpu_usage} {nvidia_gpu_temp} {nvidia_vram_usage}
 ```
 
-With several GPUs from the same vendor, the busiest and hottest values among them are shown (only the first GPU for NVIDIA). While an NVIDIA GPU is runtime-suspended, its usage and VRAM usage show `0%` and its temperature `--°C`.
+With several GPUs from the same vendor, the busiest and hottest values among them are shown (only the first GPU for NVIDIA). While an NVIDIA GPU is runtime-suspended, its usage and VRAM usage show `0%` and its temperature `--°C`. While it is idle, `nvidia-smi` is only queried every 30 seconds, so that the GPU can be suspended: values may then take up to 30 seconds to update once it gets busy.
 
 Use `{{` and `}}` for literal braces in your template.
 

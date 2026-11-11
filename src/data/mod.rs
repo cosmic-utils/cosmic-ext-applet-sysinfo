@@ -158,7 +158,7 @@ impl Vram {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct NvidiaSmi {
     temp: Option<f32>,
     usage: Option<u64>,
@@ -174,6 +174,26 @@ impl NvidiaSmi {
             usage: Some(0),
             vram_usage: Some(0),
         }
+    }
+}
+
+/// How long an `nvidia-smi` reading of an idle GPU is reused. Querying the GPU
+/// resets its idle timer, and it needs several idle seconds to be
+/// runtime-suspended, which it would never get with a query every second.
+const NVIDIA_IDLE_POLL: Duration = Duration::from_secs(30);
+
+/// The last `nvidia-smi` reading
+struct NvidiaSample {
+    at: Instant,
+    smi: NvidiaSmi,
+}
+
+impl NvidiaSample {
+    /// Whether the reading can be reused instead of querying `nvidia-smi`:
+    /// only while the GPU is idle, so that a busy GPU is still followed
+    /// closely.
+    fn is_fresh(&self, now: Instant) -> bool {
+        self.smi.usage == Some(0) && now.duration_since(self.at) < NVIDIA_IDLE_POLL
     }
 }
 
@@ -285,6 +305,7 @@ pub(crate) struct Gpu {
     // Sampling state for `refresh_xe_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
+    nvidia_sample: Option<NvidiaSample>,
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
@@ -300,6 +321,7 @@ impl Gpu {
         Self {
             last_sample_at: None,
             last_idle_ms: HashMap::new(),
+            nvidia_sample: None,
             temp: None,
             usage: None,
             vram_usage: None,
@@ -350,7 +372,9 @@ impl Gpu {
         let of_vendor = |vendor| cards.iter().filter(move |c| c.vendor == vendor);
 
         // Lazy nvidia-smi: spawned at most once
-        let nvidia = LazyCell::new(|| Self::query_nvidia(&cards));
+        let mut nvidia_sample = self.nvidia_sample.take();
+        let nvidia =
+            LazyCell::new(|| Self::query_nvidia(&cards, &mut nvidia_sample, Instant::now()));
 
         // Sampled once per refresh, as it is computed from the time elapsed
         // since the previous sample
@@ -439,6 +463,8 @@ impl Gpu {
         } else {
             GpuStats::default()
         };
+
+        self.nvidia_sample = nvidia_sample;
     }
 
     fn find_temp(components: &Components) -> Option<f32> {
@@ -621,11 +647,25 @@ impl Gpu {
     /// Query NVIDIA GPUs through `nvidia-smi`, unless they are all
     /// runtime-suspended: `nvidia-smi` would wake them up, and a laptop's
     /// discrete GPU would then never go back to sleep while the applet runs.
-    fn query_nvidia(cards: &[DrmCard]) -> Option<NvidiaSmi> {
+    /// For the same reason, the reading of an idle GPU is reused for
+    /// `NVIDIA_IDLE_POLL`, giving it the time to be suspended.
+    fn query_nvidia(
+        cards: &[DrmCard],
+        sample: &mut Option<NvidiaSample>,
+        now: Instant,
+    ) -> Option<NvidiaSmi> {
         if Self::all_nvidia_suspended(cards) {
+            *sample = None;
             return Some(NvidiaSmi::suspended());
         }
-        Self::query_nvidia_smi()
+        if let Some(sample) = sample.as_ref()
+            && sample.is_fresh(now)
+        {
+            return Some(sample.smi.clone());
+        }
+        let smi = Self::query_nvidia_smi();
+        *sample = smi.clone().map(|smi| NvidiaSample { at: now, smi });
+        smi
     }
 
     /// Whether there is at least one NVIDIA GPU and every one of them is
@@ -1174,7 +1214,13 @@ mod test {
             assert!(cards[0].is_runtime_suspended());
 
             // a suspended GPU is reported idle instead of being woken up
-            let stats = Gpu::query_nvidia(&cards).unwrap();
+            let mut sample = Some(NvidiaSample {
+                at: Instant::now(),
+                smi: NvidiaSmi::default(),
+            });
+            let stats = Gpu::query_nvidia(&cards, &mut sample, Instant::now()).unwrap();
+            // the reading taken before the GPU was suspended is outdated
+            assert!(sample.is_none());
             assert_eq!(stats.usage, Some(0));
             assert_eq!(stats.vram_usage, Some(0));
             assert_eq!(stats.temp, None);
@@ -1226,6 +1272,57 @@ mod test {
         fn scan_missing_directory() {
             let drm = FakeDrm::new("missing-dir");
             assert!(DrmCard::scan_in(&drm.0.join("nope")).is_empty());
+        }
+    }
+
+    mod nvidia_sample {
+        use super::*;
+
+        fn sample(usage: Option<u64>, at: Instant) -> NvidiaSample {
+            NvidiaSample {
+                at,
+                smi: NvidiaSmi {
+                    temp: Some(12.0),
+                    usage,
+                    vram_usage: Some(3),
+                },
+            }
+        }
+
+        #[test]
+        fn idle_reading_is_reused_for_a_while() {
+            let at = Instant::now();
+            let idle = sample(Some(0), at);
+            assert!(idle.is_fresh(at));
+            assert!(idle.is_fresh(at + NVIDIA_IDLE_POLL - Duration::from_millis(1)));
+            assert!(!idle.is_fresh(at + NVIDIA_IDLE_POLL));
+        }
+
+        #[test]
+        fn busy_or_unknown_reading_is_not_reused() {
+            let at = Instant::now();
+            assert!(!sample(Some(1), at).is_fresh(at));
+            assert!(!sample(None, at).is_fresh(at));
+        }
+
+        #[test]
+        fn fresh_reading_skips_nvidia_smi() {
+            let drm = FakeDrm::new("nvidia-sample");
+            drm.write("card0", "vendor", "0x10de\n").write(
+                "card0",
+                "power/runtime_status",
+                "active\n",
+            );
+            let cards = DrmCard::scan_in(&drm.0);
+            let at = Instant::now();
+            let mut cached = Some(sample(Some(0), at));
+
+            // the values could only come from the cached reading
+            let stats =
+                Gpu::query_nvidia(&cards, &mut cached, at + Duration::from_secs(5)).unwrap();
+            assert_eq!(stats.temp, Some(12.0));
+            assert_eq!(stats.vram_usage, Some(3));
+            assert!(cached.is_some_and(|c| c.at == at));
         }
     }
 
