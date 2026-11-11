@@ -87,6 +87,15 @@ impl FromStr for Variable {
             "disk_write" => Ok(Self::DiskWrite),
             "disk_used" => Ok(Self::DiskUsed),
             "disk_usage" => Ok(Self::DiskUsage),
+            "amd_gpu_temp" => Ok(Self::AmdGpuTemp),
+            "amd_gpu_usage" => Ok(Self::AmdGpuUsage),
+            "amd_vram_usage" => Ok(Self::AmdVramUsage),
+            "intel_gpu_temp" => Ok(Self::IntelGpuTemp),
+            "intel_gpu_usage" => Ok(Self::IntelGpuUsage),
+            "intel_vram_usage" => Ok(Self::IntelVramUsage),
+            "nvidia_gpu_temp" => Ok(Self::NvidiaGpuTemp),
+            "nvidia_gpu_usage" => Ok(Self::NvidiaGpuUsage),
+            "nvidia_vram_usage" => Ok(Self::NvidiaVramUsage),
             _ => Err(()),
         }
     }
@@ -128,6 +137,10 @@ mod test {
             insta::assert_debug_snapshot!(
                 "gpu_metrics",
                 parse("GPU {gpu_usage} {gpu_temp} VRAM {vram_usage}")
+            );
+            insta::assert_debug_snapshot!(
+                "per_vendor_gpu",
+                parse("AMD {amd_gpu_usage} {amd_gpu_temp} {amd_vram_usage} | Intel {intel_gpu_usage} {intel_gpu_temp} {intel_vram_usage} | NV {nvidia_gpu_usage} {nvidia_gpu_temp} {nvidia_vram_usage}")
             );
             insta::assert_debug_snapshot!(
                 "network_focused",

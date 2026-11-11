@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 
 use crate::template::Variable::{
-    CpuTemp, CpuUsage, DiskRead, DiskUsage, DiskUsed, DiskWrite, DlSpeed, GpuTemp, GpuUsage,
-    NpuFrequency, NpuUsage, PublicIpv4, PublicIpv6, RamUsage, UlSpeed, VramUsage,
+    AmdGpuTemp, AmdGpuUsage, AmdVramUsage, CpuTemp, CpuUsage, DiskRead, DiskUsage, DiskUsed,
+    DiskWrite, DlSpeed, GpuTemp, GpuUsage, IntelGpuTemp, IntelGpuUsage, IntelVramUsage,
+    NpuFrequency, NpuUsage, NvidiaGpuTemp, NvidiaGpuUsage, NvidiaVramUsage, PublicIpv4, PublicIpv6,
+    RamUsage, UlSpeed, VramUsage,
 };
 
 mod parse;
@@ -33,9 +35,18 @@ pub(crate) enum Variable {
     VramUsage = 13,
     DiskUsed = 14,
     DiskUsage = 15,
+    AmdGpuTemp = 16,
+    AmdGpuUsage = 17,
+    AmdVramUsage = 18,
+    IntelGpuTemp = 19,
+    IntelGpuUsage = 20,
+    IntelVramUsage = 21,
+    NvidiaGpuTemp = 22,
+    NvidiaGpuUsage = 23,
+    NvidiaVramUsage = 24,
 }
 
-const ALL_VARIABLES: [Variable; 16] = [
+const ALL_VARIABLES: [Variable; 25] = [
     CpuUsage,
     RamUsage,
     CpuTemp,
@@ -52,11 +63,20 @@ const ALL_VARIABLES: [Variable; 16] = [
     VramUsage,
     DiskUsed,
     DiskUsage,
+    AmdGpuTemp,
+    AmdGpuUsage,
+    AmdVramUsage,
+    IntelGpuTemp,
+    IntelGpuUsage,
+    IntelVramUsage,
+    NvidiaGpuTemp,
+    NvidiaGpuUsage,
+    NvidiaVramUsage,
 ];
 
 impl Variable {
-    const fn bit(self) -> u16 {
-        1 << (self as u16)
+    const fn bit(self) -> u32 {
+        1 << (self as u32)
     }
 }
 
@@ -69,7 +89,7 @@ pub(crate) enum Segment {
 
 /// Compact bitset tracking which `Variable`s a template references.
 #[derive(Clone, Copy, Default)]
-pub(crate) struct Requires(u16);
+pub(crate) struct Requires(u32);
 
 impl Requires {
     pub(crate) fn contains(self, var: Variable) -> bool {
@@ -103,6 +123,15 @@ impl Debug for Requires {
                 VramUsage => "vram_usage",
                 DiskUsed => "disk_used",
                 DiskUsage => "disk_usage",
+                AmdGpuTemp => "amd_gpu_temp",
+                AmdGpuUsage => "amd_gpu_usage",
+                AmdVramUsage => "amd_vram_usage",
+                IntelGpuTemp => "intel_gpu_temp",
+                IntelGpuUsage => "intel_gpu_usage",
+                IntelVramUsage => "intel_vram_usage",
+                NvidiaGpuTemp => "nvidia_gpu_temp",
+                NvidiaGpuUsage => "nvidia_gpu_usage",
+                NvidiaVramUsage => "nvidia_vram_usage",
             })
             .collect();
 

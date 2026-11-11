@@ -18,6 +18,7 @@
 - **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** — reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
 - **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
+- **Per-vendor GPU metrics** — on systems with several GPUs (e.g. a laptop with an integrated AMD/Intel GPU and a discrete NVIDIA one), show each GPU separately. A runtime-suspended NVIDIA GPU is reported as idle without querying `nvidia-smi`, so the applet does not keep waking it up
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
@@ -51,6 +52,9 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
 | `{gpu_usage}` | GPU usage % | `3%` |
 | `{vram_usage}` | GPU memory (VRAM) usage % | `9%` |
+| `{amd_gpu_temp}`, `{intel_gpu_temp}`, `{nvidia_gpu_temp}` | Temperature of the GPU of that vendor in °C | `62°C` |
+| `{amd_gpu_usage}`, `{intel_gpu_usage}`, `{nvidia_gpu_usage}` | Usage % of the GPU of that vendor | `41%` |
+| `{amd_vram_usage}`, `{intel_vram_usage}`, `{nvidia_vram_usage}` | VRAM usage % of the GPU of that vendor | `22%` |
 | `{npu_usage}` | NPU usage % |`43%` |
 | `{npu_frequency}` | NPU frequency MHz |`1600MHz` |
 | `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
@@ -63,6 +67,16 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{disk_usage}` | Used space of all disks % | `65%` |
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
+
+### Systems with several GPUs
+
+`{gpu_temp}`, `{gpu_usage}` and `{vram_usage}` report the first GPU found, checking AMD and Intel before NVIDIA. On a hybrid laptop this is usually the integrated GPU. To pick a GPU, or show several side by side, use the per-vendor variables:
+
+```
+CPU {cpu_usage} | AMD {amd_gpu_usage} {amd_gpu_temp} | NVIDIA {nvidia_gpu_usage} {nvidia_gpu_temp} {nvidia_vram_usage}
+```
+
+With several GPUs from the same vendor, the busiest and hottest values among them are shown (only the first GPU for NVIDIA). While an NVIDIA GPU is runtime-suspended, its usage and VRAM usage show `0%` and its temperature `--°C`.
 
 Use `{{` and `}}` for literal braces in your template.
 

@@ -162,7 +162,123 @@ impl Vram {
 struct NvidiaSmi {
     temp: Option<f32>,
     usage: Option<u64>,
-    vram: Vram,
+    vram_usage: Option<u64>,
+}
+
+impl NvidiaSmi {
+    /// What to report for a runtime-suspended GPU: it is idle and holds
+    /// nothing in VRAM, but its temperature is unknown without waking it.
+    fn suspended() -> Self {
+        Self {
+            temp: None,
+            usage: Some(0),
+            vram_usage: Some(0),
+        }
+    }
+}
+
+const PCI_VENDOR_AMD: u16 = 0x1002;
+const PCI_VENDOR_INTEL: u16 = 0x8086;
+const PCI_VENDOR_NVIDIA: u16 = 0x10de;
+
+/// A GPU as listed in `/sys/class/drm` (`card0`, `card1`, …).
+struct DrmCard {
+    vendor: u16,
+    /// The `device` directory of the card, holding its sysfs attributes
+    device: PathBuf,
+}
+
+impl DrmCard {
+    fn scan() -> Vec<Self> {
+        Self::scan_in(Path::new("/sys/class/drm"))
+    }
+
+    /// List the cards in `drm_dir`, skipping connectors (`card1-eDP-1`) and
+    /// render nodes, which share the device of their card.
+    fn scan_in(drm_dir: &Path) -> Vec<Self> {
+        let Ok(entries) = fs::read_dir(drm_dir) else {
+            return Vec::new();
+        };
+
+        let mut cards: Vec<_> = entries
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .and_then(|name| name.strip_prefix("card"))
+                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+            })
+            .filter_map(|e| {
+                let device = e.path().join("device");
+                let vendor = fs::read_to_string(device.join("vendor")).ok()?;
+                let vendor =
+                    u16::from_str_radix(vendor.trim().trim_start_matches("0x"), 16).ok()?;
+                Some(Self { vendor, device })
+            })
+            .collect();
+        cards.sort_by(|a, b| a.device.cmp(&b.device));
+        cards
+    }
+
+    fn read_u64(&self, attribute: &str) -> Option<u64> {
+        fs::read_to_string(self.device.join(attribute))
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
+    }
+
+    /// `gpu_busy_percent`, exposed by amdgpu
+    fn busy_percent(&self) -> Option<u64> {
+        self.read_u64("gpu_busy_percent")
+    }
+
+    /// VRAM usage percentage from the amdgpu `mem_info_vram_*` attributes
+    fn vram_usage(&self) -> Option<u64> {
+        Vram {
+            used: self.read_u64("mem_info_vram_used"),
+            total: self.read_u64("mem_info_vram_total"),
+        }
+        .usage()
+    }
+
+    /// Hottest sensor of the card's own hwmon device, in °C
+    fn hottest_temp(&self) -> Option<f32> {
+        fs::read_dir(self.device.join("hwmon"))
+            .ok()?
+            .flatten()
+            .flat_map(|hwmon| fs::read_dir(hwmon.path()).into_iter().flatten().flatten())
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_some_and(|n| n.starts_with("temp") && n.ends_with("_input"))
+            })
+            .filter_map(|e| {
+                fs::read_to_string(e.path())
+                    .ok()?
+                    .trim()
+                    .parse::<f32>()
+                    .ok()
+            })
+            .map(|millidegrees| millidegrees / 1000.0)
+            .max_by(f32::total_cmp)
+    }
+
+    /// Whether runtime power management has put the GPU to sleep. Reading
+    /// this does not wake the GPU, unlike querying it through its driver.
+    fn is_runtime_suspended(&self) -> bool {
+        fs::read_to_string(self.device.join("power/runtime_status"))
+            .is_ok_and(|status| status.trim() == "suspended")
+    }
+}
+
+/// Metrics of the GPUs of a single vendor. With several GPUs of the same
+/// vendor, the busiest / hottest one is reported.
+#[derive(Default)]
+pub(crate) struct GpuStats {
+    pub(crate) temp: Option<f32>,
+    pub(crate) usage: Option<u64>,
+    pub(crate) vram_usage: Option<u64>,
 }
 
 pub(crate) struct Gpu {
@@ -173,6 +289,10 @@ pub(crate) struct Gpu {
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
     pub(crate) vram_usage: Option<u64>,
+
+    pub(crate) amd: GpuStats,
+    pub(crate) intel: GpuStats,
+    pub(crate) nvidia: GpuStats,
 }
 
 impl Gpu {
@@ -183,23 +303,62 @@ impl Gpu {
             temp: None,
             usage: None,
             vram_usage: None,
+            amd: GpuStats::default(),
+            intel: GpuStats::default(),
+            nvidia: GpuStats::default(),
         }
     }
 
     fn refresh(&mut self, components: &Components, requires: Requires) {
-        let needs_temp = requires.contains(Variable::GpuTemp);
-        let needs_usage = requires.contains(Variable::GpuUsage);
-        let needs_vram = requires.contains(Variable::VramUsage);
+        let needs = |var| requires.contains(var);
+        let needs_temp = needs(Variable::GpuTemp);
+        let needs_usage = needs(Variable::GpuUsage);
+        let needs_vram = needs(Variable::VramUsage);
+        let needs_amd = [
+            Variable::AmdGpuTemp,
+            Variable::AmdGpuUsage,
+            Variable::AmdVramUsage,
+        ]
+        .into_iter()
+        .any(needs);
+        let needs_intel = [
+            Variable::IntelGpuTemp,
+            Variable::IntelGpuUsage,
+            Variable::IntelVramUsage,
+        ]
+        .into_iter()
+        .any(needs);
+        let needs_nvidia = [
+            Variable::NvidiaGpuTemp,
+            Variable::NvidiaGpuUsage,
+            Variable::NvidiaVramUsage,
+        ]
+        .into_iter()
+        .any(needs);
 
-        if !needs_temp && !needs_usage && !needs_vram {
+        if !(needs_temp || needs_usage || needs_vram || needs_amd || needs_intel || needs_nvidia) {
             self.temp = None;
             self.usage = None;
             self.vram_usage = None;
+            self.amd = GpuStats::default();
+            self.intel = GpuStats::default();
+            self.nvidia = GpuStats::default();
             return;
         }
 
+        let cards = DrmCard::scan();
+        let of_vendor = |vendor| cards.iter().filter(move |c| c.vendor == vendor);
+
         // Lazy nvidia-smi: spawned at most once
-        let nvidia = LazyCell::new(Self::query_nvidia_smi);
+        let nvidia = LazyCell::new(|| Self::query_nvidia(&cards));
+
+        // Sampled once per refresh, as it is computed from the time elapsed
+        // since the previous sample
+        let xe_usage = if needs_usage || needs(Variable::IntelGpuUsage) {
+            self.refresh_xe_usage()
+        } else {
+            None
+        };
 
         self.temp = if needs_temp {
             Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|n| n.temp))
@@ -207,18 +366,78 @@ impl Gpu {
             None
         };
         self.usage = if needs_usage {
-            Self::find_usage_sysfs()
-                .or_else(|| self.refresh_xe_usage())
+            cards
+                .iter()
+                .find_map(DrmCard::busy_percent)
+                .or(xe_usage)
                 .or_else(|| nvidia.as_ref().and_then(|n| n.usage))
         } else {
             None
         };
         self.vram_usage = if needs_vram {
-            Self::find_vram_usage_sysfs()
+            cards
+                .iter()
+                .find_map(DrmCard::vram_usage)
                 .or_else(Self::query_xe_vram)
-                .or_else(|| nvidia.as_ref().and_then(|n| n.vram.usage()))
+                .or_else(|| nvidia.as_ref().and_then(|n| n.vram_usage))
         } else {
             None
+        };
+
+        self.amd = GpuStats {
+            temp: needs(Variable::AmdGpuTemp)
+                .then(|| {
+                    of_vendor(PCI_VENDOR_AMD)
+                        .filter_map(DrmCard::hottest_temp)
+                        .max_by(f32::total_cmp)
+                })
+                .flatten(),
+            usage: needs(Variable::AmdGpuUsage)
+                .then(|| {
+                    of_vendor(PCI_VENDOR_AMD)
+                        .filter_map(DrmCard::busy_percent)
+                        .max()
+                })
+                .flatten(),
+            vram_usage: needs(Variable::AmdVramUsage)
+                .then(|| {
+                    of_vendor(PCI_VENDOR_AMD)
+                        .filter_map(DrmCard::vram_usage)
+                        .max()
+                })
+                .flatten(),
+        };
+
+        self.intel = GpuStats {
+            temp: needs(Variable::IntelGpuTemp)
+                .then(|| {
+                    of_vendor(PCI_VENDOR_INTEL)
+                        .filter_map(DrmCard::hottest_temp)
+                        .max_by(f32::total_cmp)
+                })
+                .flatten(),
+            // the idle residency counters are only exposed by Intel's xe driver
+            usage: needs(Variable::IntelGpuUsage).then_some(xe_usage).flatten(),
+            vram_usage: needs(Variable::IntelVramUsage)
+                .then(Self::query_xe_vram)
+                .flatten(),
+        };
+
+        self.nvidia = if needs_nvidia {
+            let n = nvidia.as_ref();
+            GpuStats {
+                temp: needs(Variable::NvidiaGpuTemp)
+                    .then(|| n.and_then(|n| n.temp))
+                    .flatten(),
+                usage: needs(Variable::NvidiaGpuUsage)
+                    .then(|| n.and_then(|n| n.usage))
+                    .flatten(),
+                vram_usage: needs(Variable::NvidiaVramUsage)
+                    .then(|| n.and_then(|n| n.vram_usage))
+                    .flatten(),
+            }
+        } else {
+            GpuStats::default()
         };
     }
 
@@ -234,38 +453,6 @@ impl Gpu {
                 .filter_map(|c| c.temperature())
                 .max_by(f32::total_cmp)
         })
-    }
-
-    fn find_usage_sysfs() -> Option<u64> {
-        let entries = fs::read_dir("/sys/class/drm").ok()?;
-        for entry in entries.flatten() {
-            if let Ok(contents) = fs::read_to_string(entry.path().join("device/gpu_busy_percent"))
-                && let Ok(value) = contents.trim().parse()
-            {
-                return Some(value);
-            }
-        }
-        None
-    }
-
-    /// VRAM usage percentage from the amdgpu sysfs interface.
-    fn find_vram_usage_sysfs() -> Option<u64> {
-        let entries = fs::read_dir("/sys/class/drm").ok()?;
-        for entry in entries.flatten() {
-            let device = entry.path().join("device");
-            let read = |name: &str| {
-                fs::read_to_string(device.join(name))
-                    .ok()
-                    .and_then(|c| c.trim().parse::<u64>().ok())
-            };
-            if let Some(used) = read("mem_info_vram_used")
-                && let Some(total) = read("mem_info_vram_total")
-                && total > 0
-            {
-                return Some(used * 100 / total);
-            }
-        }
-        None
     }
 
     /// VRAM usage percentage for the Intel `xe` driver, from the
@@ -431,6 +618,20 @@ impl Gpu {
         samples
     }
 
+    /// Query NVIDIA GPUs through `nvidia-smi`, unless they are all
+    /// runtime-suspended: `nvidia-smi` would wake them up, and a laptop's
+    /// discrete GPU would then never go back to sleep while the applet runs.
+    fn query_nvidia(cards: &[DrmCard]) -> Option<NvidiaSmi> {
+        let mut nvidia = cards
+            .iter()
+            .filter(|c| c.vendor == PCI_VENDOR_NVIDIA)
+            .peekable();
+        if nvidia.peek().is_some() && nvidia.all(DrmCard::is_runtime_suspended) {
+            return Some(NvidiaSmi::suspended());
+        }
+        Self::query_nvidia_smi()
+    }
+
     fn query_nvidia_smi() -> Option<NvidiaSmi> {
         let is_flatpak = Path::new("/.flatpak-info").exists();
 
@@ -453,16 +654,23 @@ impl Gpu {
         if !output.status.success() {
             return None;
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut fields = stdout.trim().split(", ");
+        Self::parse_nvidia_smi(&String::from_utf8_lossy(&output.stdout))
+    }
+
+    /// Parse the output of the `nvidia-smi` query, which has one line per GPU.
+    /// Only the first GPU is reported.
+    fn parse_nvidia_smi(stdout: &str) -> Option<NvidiaSmi> {
+        let mut fields = stdout.lines().next()?.split(',').map(str::trim);
+        let mut next = || fields.next().and_then(|s| s.parse().ok());
 
         Some(NvidiaSmi {
-            temp: fields.next().and_then(|s| s.trim().parse().ok()),
-            usage: fields.next().and_then(|s| s.trim().parse().ok()),
-            vram: Vram {
-                used: fields.next().and_then(|s| s.trim().parse().ok()),
-                total: fields.next().and_then(|s| s.trim().parse().ok()),
-            },
+            temp: next().map(|t: u64| t as f32),
+            usage: next(),
+            vram_usage: Vram {
+                used: next(),
+                total: next(),
+            }
+            .usage(),
         })
     }
 }
@@ -878,6 +1086,119 @@ mod test {
 
             // Prefer the xe die temperature `pkg` over the memory one `vram`
             assert_eq!(Gpu::find_temp(&components), Some(2.0));
+        }
+    }
+
+    /// A throwaway directory mimicking `/sys/class/drm`
+    struct FakeDrm(PathBuf);
+
+    impl FakeDrm {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("sysinfo-applet-test-{name}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+
+        /// Write `contents` to `card/device/attribute`, creating directories
+        fn write(&self, card: &str, attribute: &str, contents: &str) -> &Self {
+            let path = self.0.join(card).join("device").join(attribute);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, contents).unwrap();
+            self
+        }
+    }
+
+    impl Drop for FakeDrm {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    mod drm_card {
+        use super::*;
+
+        #[test]
+        fn scan_skips_connectors_and_render_nodes() {
+            let drm = FakeDrm::new("scan");
+            drm.write("card0", "vendor", "0x10de\n")
+                .write("card0-eDP-1", "vendor", "0x10de\n")
+                .write("card1", "vendor", "0x1002\n")
+                .write("renderD128", "vendor", "0x10de\n");
+            // a card whose device has no vendor attribute is ignored
+            fs::create_dir_all(drm.0.join("card2/device")).unwrap();
+
+            let vendors: Vec<_> = DrmCard::scan_in(&drm.0).iter().map(|c| c.vendor).collect();
+            assert_eq!(vendors, [PCI_VENDOR_NVIDIA, PCI_VENDOR_AMD]);
+        }
+
+        #[test]
+        fn amdgpu_attributes() {
+            let drm = FakeDrm::new("amdgpu");
+            drm.write("card1", "vendor", "0x1002\n")
+                .write("card1", "gpu_busy_percent", "37\n")
+                .write("card1", "mem_info_vram_used", "256\n")
+                .write("card1", "mem_info_vram_total", "1024\n")
+                .write("card1", "hwmon/hwmon4/temp1_input", "62000\n")
+                .write("card1", "hwmon/hwmon4/temp2_input", "71500\n")
+                .write("card1", "hwmon/hwmon4/temp1_label", "edge\n");
+
+            let cards = DrmCard::scan_in(&drm.0);
+            let [card] = cards.as_slice() else {
+                panic!("expected exactly one card");
+            };
+            assert_eq!(card.busy_percent(), Some(37));
+            assert_eq!(card.vram_usage(), Some(25));
+            // the hotspot is reported, not the first sensor
+            assert_eq!(card.hottest_temp(), Some(71.5));
+            assert!(!card.is_runtime_suspended());
+        }
+
+        #[test]
+        fn runtime_suspended() {
+            let drm = FakeDrm::new("suspended");
+            drm.write("card0", "vendor", "0x10de\n").write(
+                "card0",
+                "power/runtime_status",
+                "suspended\n",
+            );
+
+            let cards = DrmCard::scan_in(&drm.0);
+            assert!(cards[0].is_runtime_suspended());
+
+            // a suspended GPU is reported idle instead of being woken up
+            let stats = Gpu::query_nvidia(&cards).unwrap();
+            assert_eq!(stats.usage, Some(0));
+            assert_eq!(stats.vram_usage, Some(0));
+            assert_eq!(stats.temp, None);
+        }
+    }
+
+    mod parse_nvidia_smi {
+        use super::*;
+
+        #[test]
+        fn single_gpu() {
+            let stats = Gpu::parse_nvidia_smi("58, 41, 1024, 4096\n").unwrap();
+            assert_eq!(stats.temp, Some(58.0));
+            assert_eq!(stats.usage, Some(41));
+            assert_eq!(stats.vram_usage, Some(25));
+        }
+
+        #[test]
+        fn first_of_several_gpus() {
+            let stats = Gpu::parse_nvidia_smi("58, 41, 1024, 4096\n30, 0, 0, 8192\n").unwrap();
+            assert_eq!(stats.usage, Some(41));
+            assert_eq!(stats.vram_usage, Some(25));
+        }
+
+        #[test]
+        fn unavailable_fields() {
+            let stats = Gpu::parse_nvidia_smi("[N/A], 12, [N/A], [N/A]\n").unwrap();
+            assert_eq!(stats.temp, None);
+            assert_eq!(stats.usage, Some(12));
+            assert_eq!(stats.vram_usage, None);
         }
     }
 }

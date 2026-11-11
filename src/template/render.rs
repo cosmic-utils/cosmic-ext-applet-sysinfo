@@ -70,27 +70,18 @@ impl Template {
                 ),
                 None => ("--°C".into(), None),
             },
-            Variable::GpuTemp => match data.gpu.temp {
-                Some(t) => (
-                    format!("{t:>2.0}°C").into(),
-                    colors.threshold(t as f64, 60.0, 85.0),
-                ),
-                None => ("--°C".into(), None),
-            },
-            Variable::GpuUsage => match data.gpu.usage {
-                Some(v) => (
-                    format!("{v:>2}%").into(),
-                    colors.threshold(v as f64, 50.0, 80.0),
-                ),
-                None => ("--%".into(), None),
-            },
-            Variable::VramUsage => match data.gpu.vram_usage {
-                Some(v) => (
-                    format!("{v:>2}%").into(),
-                    colors.threshold(v as f64, 50.0, 80.0),
-                ),
-                None => ("--%".into(), None),
-            },
+            Variable::GpuTemp => gpu_temp(data.gpu.temp, colors),
+            Variable::GpuUsage => gpu_percent(data.gpu.usage, colors),
+            Variable::VramUsage => gpu_percent(data.gpu.vram_usage, colors),
+            Variable::AmdGpuTemp => gpu_temp(data.gpu.amd.temp, colors),
+            Variable::AmdGpuUsage => gpu_percent(data.gpu.amd.usage, colors),
+            Variable::AmdVramUsage => gpu_percent(data.gpu.amd.vram_usage, colors),
+            Variable::IntelGpuTemp => gpu_temp(data.gpu.intel.temp, colors),
+            Variable::IntelGpuUsage => gpu_percent(data.gpu.intel.usage, colors),
+            Variable::IntelVramUsage => gpu_percent(data.gpu.intel.vram_usage, colors),
+            Variable::NvidiaGpuTemp => gpu_temp(data.gpu.nvidia.temp, colors),
+            Variable::NvidiaGpuUsage => gpu_percent(data.gpu.nvidia.usage, colors),
+            Variable::NvidiaVramUsage => gpu_percent(data.gpu.nvidia.vram_usage, colors),
             Variable::DlSpeed => match data.download_speed {
                 Some(s) => (format!("{s:4.1}").into(), None),
                 None => (" -.-".into(), None),
@@ -138,5 +129,25 @@ impl Template {
                 None => ("--%".into(), None),
             },
         }
+    }
+}
+
+fn gpu_temp<'a>(temp: Option<f32>, colors: &AppletColor) -> (Cow<'a, str>, Option<Color>) {
+    match temp {
+        Some(t) => (
+            format!("{t:>2.0}°C").into(),
+            colors.threshold(t as f64, 60.0, 85.0),
+        ),
+        None => ("--°C".into(), None),
+    }
+}
+
+fn gpu_percent<'a>(value: Option<u64>, colors: &AppletColor) -> (Cow<'a, str>, Option<Color>) {
+    match value {
+        Some(v) => (
+            format!("{v:>2}%").into(),
+            colors.threshold(v as f64, 50.0, 80.0),
+        ),
+        None => ("--%".into(), None),
     }
 }

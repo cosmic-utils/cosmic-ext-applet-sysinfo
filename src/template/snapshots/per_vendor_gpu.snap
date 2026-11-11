@@ -1,0 +1,73 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"AMD {amd_gpu_usage} {amd_gpu_temp} {amd_vram_usage} | Intel {intel_gpu_usage} {intel_gpu_temp} {intel_vram_usage} | NV {nvidia_gpu_usage} {nvidia_gpu_temp} {nvidia_vram_usage}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "AMD ",
+        ),
+        Variable(
+            AmdGpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            AmdGpuTemp,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            AmdVramUsage,
+        ),
+        Literal(
+            " | Intel ",
+        ),
+        Variable(
+            IntelGpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            IntelGpuTemp,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            IntelVramUsage,
+        ),
+        Literal(
+            " | NV ",
+        ),
+        Variable(
+            NvidiaGpuUsage,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            NvidiaGpuTemp,
+        ),
+        Literal(
+            " ",
+        ),
+        Variable(
+            NvidiaVramUsage,
+        ),
+    ],
+    requires: {
+        "amd_gpu_temp",
+        "amd_gpu_usage",
+        "amd_vram_usage",
+        "intel_gpu_temp",
+        "intel_gpu_usage",
+        "intel_vram_usage",
+        "nvidia_gpu_temp",
+        "nvidia_gpu_usage",
+        "nvidia_vram_usage",
+    },
+}
