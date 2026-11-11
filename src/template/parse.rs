@@ -87,6 +87,7 @@ impl FromStr for Variable {
             "disk_write" => Ok(Self::DiskWrite),
             "disk_used" => Ok(Self::DiskUsed),
             "disk_usage" => Ok(Self::DiskUsage),
+            "battery_power" => Ok(Self::BatteryPower),
             _ => Err(()),
         }
     }
@@ -141,6 +142,7 @@ mod test {
                 "public_ips",
                 parse("IPv4 {pub_ipv4} | IPv6 {pub_ipv6}")
             );
+            insta::assert_debug_snapshot!("battery", parse("BAT {battery_power}"));
             insta::assert_debug_snapshot!(
                 "mixed_with_ips",
                 parse("CPU {cpu_usage} | {pub_ipv4}")

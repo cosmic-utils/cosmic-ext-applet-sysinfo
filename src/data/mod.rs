@@ -1,3 +1,4 @@
+mod battery;
 #[cfg(test)]
 mod sysinfo_mock;
 
@@ -489,6 +490,8 @@ pub(crate) struct Data {
     pub(crate) public_ipv4: Option<String>,
     pub(crate) public_ipv6: Option<String>,
     pub(crate) disks: Disk,
+    /// Net battery power in W, positive while charging.
+    pub(crate) battery_power: Option<f64>,
 }
 
 impl Data {
@@ -526,6 +529,7 @@ impl Data {
             public_ipv4: None,
             public_ipv6: None,
             disks: disks_data,
+            battery_power: None,
         }
     }
 
@@ -545,6 +549,7 @@ impl Data {
         let needs_disk_write = requires.contains(Variable::DiskWrite);
         let needs_disk_used = requires.contains(Variable::DiskUsed);
         let needs_disk_usage = requires.contains(Variable::DiskUsage);
+        let needs_battery_power = requires.contains(Variable::BatteryPower);
 
         if (needs_download || needs_upload)
             && self.last_interface_scan.elapsed() > Duration::from_secs(10)
@@ -682,6 +687,10 @@ impl Data {
         if needs_npu_frequency {
             self.npu
                 .refresh_frequency(Self::find_npu_frequency_mhz_sysfs());
+        }
+
+        if needs_battery_power {
+            self.battery_power = battery::read_power(Path::new(battery::POWER_SUPPLY_DIR));
         }
     }
 

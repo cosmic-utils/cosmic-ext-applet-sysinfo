@@ -20,6 +20,7 @@
 - **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
+- **Battery power** — power flowing into or out of the battery in W, read from sysfs (`power_now`, or `current_now` × `voltage_now`)
 - **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
 - **Colour-coded values** — metrics change colour (normal → yellow → red) based on severity using COSMIC theme colours
 
@@ -61,8 +62,11 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{disk_write}` | Write activity of all disks in MB/s (2 decimals) | `10.82` |
 | `{disk_used}` | Used space of all disks in GB | `195.2GB` |
 | `{disk_usage}` | Used space of all disks % | `65%` |
+| `{battery_power}` | Battery power in W: `+` (green) while charging, `-` (yellow) while discharging | `-12.3W` |
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
+
+`{battery_power}` shows `0.0W` while the battery is neither charging nor discharging, e.g. when it is full on AC, and `--W` on systems without a battery. It is the power of the battery, not of the whole system: while on AC, the power drawn from the charger is not included. With several batteries, their power is added up.
 
 Use `{{` and `}}` for literal braces in your template.
 

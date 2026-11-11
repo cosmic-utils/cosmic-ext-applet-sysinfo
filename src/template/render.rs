@@ -130,6 +130,7 @@ impl Template {
                 Some(s) => (format!("{s:4.1}GB").into(), None),
                 None => ("-.-".into(), None),
             },
+            Variable::BatteryPower => battery_power(data.battery_power, colors),
             Variable::DiskUsage => match data.disks.usage {
                 Some(s) => (
                     format!("{s:>2}%").into(),
@@ -138,5 +139,44 @@ impl Template {
                 None => ("--%".into(), None),
             },
         }
+    }
+}
+
+/// Battery power with its direction, e.g. `+25.1W` (green) while charging, `-12.3W`
+/// (yellow) while discharging and `0.0W` while neither.
+fn battery_power<'a>(watts: Option<f64>, colors: &AppletColor) -> (Cow<'a, str>, Option<Color>) {
+    match watts {
+        // don't show `-0.0W` or `+0.0W` for a battery that is barely in use
+        Some(w) if w.abs() < 0.05 => (format!("{:>5.1}W", 0.0).into(), None),
+        Some(w) if w > 0.0 => (format!("{w:>+5.1}W").into(), Some(colors.charging)),
+        Some(w) => (format!("{w:>+5.1}W").into(), Some(colors.warn)),
+        None => ("--W".into(), None),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    const COLORS: AppletColor = AppletColor {
+        warn: Color::from_rgb(1.0, 1.0, 0.0),
+        critical: Color::from_rgb(1.0, 0.0, 0.0),
+        charging: Color::from_rgb(0.0, 1.0, 0.0),
+    };
+
+    #[test]
+    fn battery_power_format_and_colour() {
+        let power = |watts| battery_power(watts, &COLORS);
+        assert_eq!(power(None), ("--W".into(), None));
+        assert_eq!(power(Some(0.0)), ("  0.0W".into(), None));
+        assert_eq!(power(Some(-0.01)), ("  0.0W".into(), None));
+        assert_eq!(power(Some(0.04)), ("  0.0W".into(), None));
+        assert_eq!(power(Some(-12.345)), ("-12.3W".into(), Some(COLORS.warn)));
+        assert_eq!(power(Some(-5.06)), (" -5.1W".into(), Some(COLORS.warn)));
+        assert_eq!(power(Some(25.0)), ("+25.0W".into(), Some(COLORS.charging)));
+        assert_eq!(
+            power(Some(100.0)),
+            ("+100.0W".into(), Some(COLORS.charging))
+        );
     }
 }

@@ -1,0 +1,17 @@
+---
+source: src/template/parse.rs
+expression: "parse(\"BAT {battery_power}\")"
+---
+Template {
+    segments: [
+        Literal(
+            "BAT ",
+        ),
+        Variable(
+            BatteryPower,
+        ),
+    ],
+    requires: {
+        "battery_power",
+    },
+}
