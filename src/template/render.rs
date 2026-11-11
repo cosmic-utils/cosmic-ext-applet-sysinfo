@@ -25,7 +25,7 @@ impl Template {
             .map(|segment| match segment {
                 Segment::Literal(text) => span(text.as_ref()),
                 Segment::Variable(var) => {
-                    let (text, color) = self.resolve_variable(*var, data, colors);
+                    let (text, color) = var.resolve(data, colors);
                     span(text).color_maybe(color)
                 }
                 Segment::Unknown(name) => span(format!("{{{name}}}")).color(colors.critical),
@@ -41,14 +41,16 @@ impl Template {
 
         rich_text(spans)
     }
+}
 
-    fn resolve_variable<'data>(
-        &self,
-        var: Variable,
+impl Variable {
+    /// The text shown for this variable, and its colour if it crosses a threshold.
+    pub(crate) fn resolve<'data>(
+        self,
         data: &'data Data,
         colors: &AppletColor,
     ) -> (Cow<'data, str>, Option<Color>) {
-        match var {
+        match self {
             Variable::CpuUsage => match data.cpu_usage {
                 Some(v) => (
                     format!("{v:>2.0}%").into(),

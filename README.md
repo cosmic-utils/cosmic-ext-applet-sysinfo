@@ -35,6 +35,8 @@ The applet uses a configurable template string to control what is displayed and 
 You can also put small reminders here
 <img width="1265" height="209" alt="image" src="https://github.com/user-attachments/assets/52d54fd8-16f5-4762-be28-b808b529c4fa" />
 
+The template can also be edited from the applet's popup. Below the editor, **Insert variable** lists every available variable by category, together with its current value; click one to insert it at the cursor. Unknown variables, such as a typo like `{cpu_usge}`, are listed in red below the editor. While the list is open, every metric is refreshed to show its value (except the public IPs, which are only fetched when the template uses them), so an idle NVIDIA GPU is woken up until the list is closed.
+
 
 ### Default template
 

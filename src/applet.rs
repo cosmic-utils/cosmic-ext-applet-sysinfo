@@ -1,4 +1,6 @@
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
+
+use cosmic::widget::text_editor::{Action, Content, Edit, Motion};
 
 use tracing::{debug, trace};
 
@@ -7,7 +9,7 @@ use crate::{
     config::{APP_ID, DEFAULT_TEMPLATE, Flags, SysInfoConfig},
     data::{self, Data},
     fl,
-    template::Template,
+    template::{Category, Requires, Template, Variable},
 };
 
 pub(crate) fn run() -> cosmic::iced::Result {
@@ -22,8 +24,10 @@ struct SysInfo {
     config_handler: Option<cosmic::cosmic_config::Config>,
     data: data::Data,
     template: Template,
-    template_content: cosmic::widget::text_editor::Content,
+    template_content: Content,
     confirm_reset: bool,
+    /// Whether the list of variables is expanded in the popup.
+    show_variables: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,10 +38,128 @@ pub(crate) enum Message {
     PopupClosed(cosmic::iced::window::Id),
     ToggleIncludeSwapWithRam(bool),
     ToggleUseMonoFont(bool),
-    TemplateEdited(cosmic::widget::text_editor::Action),
+    TemplateEdited(Action),
+    ToggleVariables,
+    InsertVariable(Variable),
     ResetTemplate,
     ConfirmReset(bool),
     OpenMonitor,
+}
+
+impl SysInfo {
+    /// The variables to refresh: those in the template, plus every local one while the
+    /// variable list is shown, so that their current values can be displayed.
+    fn requires(&self) -> Requires {
+        if self.popup.is_some() && self.show_variables {
+            self.template.requires.union(Requires::local())
+        } else {
+            self.template.requires
+        }
+    }
+
+    fn edit_template(&mut self, action: Action) {
+        // Only re-sync/re-persist on actual edits; navigation (arrow keys, cursor moves)
+        // shouldn't rewrite the config
+        let is_edit = action.is_edit();
+        self.template_content.perform(action);
+        if !is_edit {
+            return;
+        }
+
+        if let Some(handler) = &self.config_handler {
+            let value = self.template_content.text();
+            match Template::from_str(&value) {
+                Ok(parsed) => {
+                    if let Err(error) = self.config.set_template(handler, value) {
+                        tracing::error!("failed to set template: {error}");
+                    } else {
+                        self.template = parsed;
+                    }
+                }
+                Err(error) => {
+                    tracing::error!("invalid template: {error}");
+                }
+            }
+        }
+    }
+
+    /// The available variables grouped by category, each showing its current value.
+    fn variable_list(&self, colors: &AppletColor) -> cosmic::Element<'_, Message> {
+        let requires = self.requires();
+        let mut list = cosmic::widget::column::with_capacity(Category::ALL.len()).spacing(8);
+
+        for category in Category::ALL {
+            let chips: Vec<cosmic::Element<'_, Message>> = Variable::ALL
+                .into_iter()
+                .filter(|var| var.category() == category)
+                .map(|var| {
+                    let mut label = cosmic::widget::row::with_capacity(2)
+                        .push(cosmic::widget::text::body(var.name()))
+                        .spacing(6)
+                        .align_y(cosmic::iced::Alignment::Center);
+                    // public IPs are only fetched when the template uses them
+                    if requires.contains(var) {
+                        let (value, color) = var.resolve(&self.data, colors);
+                        let value = cosmic::widget::text::caption(value.trim().to_owned());
+                        label = label.push(match color {
+                            Some(color) => value.class(cosmic::theme::Text::Color(color)),
+                            None => value,
+                        });
+                    }
+
+                    cosmic::widget::button::custom(label)
+                        .padding([4, 8])
+                        .class(cosmic::theme::Button::Standard)
+                        .on_press(Message::InsertVariable(var))
+                        .into()
+                })
+                .collect();
+
+            list = list.push(
+                cosmic::widget::column::with_capacity(2)
+                    .push(cosmic::widget::text::heading(category_label(category)))
+                    .push(cosmic::widget::flex_row(chips).spacing(4))
+                    .spacing(4),
+            );
+        }
+
+        cosmic::widget::scrollable(list).height(260).into()
+    }
+}
+
+/// An editor holding `text`, with the cursor at the end, so that inserted variables are
+/// appended unless the user places the cursor elsewhere.
+fn template_content(text: &str) -> Content {
+    let mut content = Content::with_text(text);
+    content.perform(Action::Move(Motion::DocumentEnd));
+    content
+}
+
+/// The characters right before and after the cursor, within its line.
+fn chars_around_cursor(content: &Content) -> (Option<char>, Option<char>) {
+    let position = content.cursor().position;
+    let Some(line) = content.line(position.line) else {
+        return (None, None);
+    };
+    let text = line.text.as_ref();
+    // the column is a byte offset
+    let column = position.column.min(text.len());
+    if !text.is_char_boundary(column) {
+        return (None, None);
+    }
+    let (before, after) = text.split_at(column);
+    (before.chars().next_back(), after.chars().next())
+}
+
+fn category_label(category: Category) -> String {
+    match category {
+        Category::Cpu => fl!("category-cpu"),
+        Category::Memory => fl!("category-memory"),
+        Category::Gpu => fl!("category-gpu"),
+        Category::Network => fl!("category-network"),
+        Category::Disk => fl!("category-disk"),
+        Category::Npu => fl!("category-npu"),
+    }
 }
 
 impl cosmic::Application for SysInfo {
@@ -54,7 +176,7 @@ impl cosmic::Application for SysInfo {
         let config = flags.config;
         let data = Data::new(&config);
         let Ok(template) = Template::from_str(&config.template);
-        let template_content = cosmic::widget::text_editor::Content::with_text(&config.template);
+        let template_content = template_content(&config.template);
 
         (
             Self {
@@ -70,6 +192,7 @@ impl cosmic::Application for SysInfo {
                     height: 10.,
                 },
                 confirm_reset: false,
+                show_variables: false,
             },
             cosmic::task::none(),
         )
@@ -117,7 +240,7 @@ impl cosmic::Application for SysInfo {
         }
 
         match message {
-            Message::Tick => self.data.refresh(self.template.requires, &self.config),
+            Message::Tick => self.data.refresh(self.requires(), &self.config),
             Message::Size(size) => {
                 self.size = size;
             }
@@ -152,7 +275,9 @@ impl cosmic::Application for SysInfo {
                 );
             }
             Message::PopupClosed(id) => {
-                self.popup.take_if(|stored_id| stored_id == &id);
+                if self.popup.take_if(|stored_id| stored_id == &id).is_some() {
+                    self.show_variables = false;
+                }
             }
             Message::ToggleIncludeSwapWithRam(value) => {
                 if let Some(handler) = &self.config_handler
@@ -168,30 +293,18 @@ impl cosmic::Application for SysInfo {
                     tracing::error!("failed to toggle `use_mono_font`: {error}")
                 }
             }
-            Message::TemplateEdited(action) => {
-                // Only re-sync/re-persist on actual edits; navigation (arrow keys, cursor moves)
-                // shouldn't rewrite the config
-                let is_edit = action.is_edit();
-                self.template_content.perform(action);
-                if !is_edit {
-                    return cosmic::task::none();
+            Message::TemplateEdited(action) => self.edit_template(action),
+            Message::ToggleVariables => {
+                self.show_variables = !self.show_variables;
+                if self.show_variables {
+                    // fill in the values shown next to the variables right away
+                    self.data.refresh(self.requires(), &self.config);
                 }
-
-                if let Some(handler) = &self.config_handler {
-                    let value = self.template_content.text();
-                    match Template::from_str(&value) {
-                        Ok(parsed) => {
-                            if let Err(error) = self.config.set_template(handler, value) {
-                                tracing::error!("failed to set template: {error}");
-                            } else {
-                                self.template = parsed;
-                            }
-                        }
-                        Err(error) => {
-                            tracing::error!("invalid template: {error}");
-                        }
-                    }
-                }
+            }
+            Message::InsertVariable(var) => {
+                let (before, after) = chars_around_cursor(&self.template_content);
+                let text = var.insertion(before, after);
+                self.edit_template(Action::Edit(Edit::Paste(Arc::new(text))));
             }
             Message::ResetTemplate => {
                 self.confirm_reset = true;
@@ -206,8 +319,7 @@ impl cosmic::Application for SysInfo {
                 } else {
                     self.template = Template::from_str(DEFAULT_TEMPLATE)
                         .expect("DEFAULT_TEMPLATE should always be a valid template");
-                    self.template_content =
-                        cosmic::widget::text_editor::Content::with_text(DEFAULT_TEMPLATE);
+                    self.template_content = template_content(DEFAULT_TEMPLATE);
                     self.confirm_reset = false;
                 }
             }
@@ -304,6 +416,43 @@ impl cosmic::Application for SysInfo {
             .into()
         };
 
+        let colors = AppletColor::new();
+        let unknown: Vec<&str> = self.template.unknown_variables().collect();
+        let template_input = if unknown.is_empty() {
+            template_input
+        } else {
+            let names = unknown
+                .iter()
+                .map(|name| format!("{{{name}}}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            template_input.push(
+                cosmic::widget::text::caption(fl!(
+                    "unknown-variables",
+                    count = unknown.len(),
+                    names = names
+                ))
+                .class(cosmic::theme::Text::Color(colors.critical)),
+            )
+        };
+
+        let toggle_variables = cosmic::widget::button::text(if self.show_variables {
+            fl!("hide-variables-button")
+        } else {
+            fl!("insert-variable-button")
+        })
+        .trailing_icon(cosmic::widget::icon::from_name(if self.show_variables {
+            "go-up-symbolic"
+        } else {
+            "go-down-symbolic"
+        }))
+        .on_press(Message::ToggleVariables);
+
+        let mut template_input = template_input.push(toggle_variables);
+        if self.show_variables {
+            template_input = template_input.push(self.variable_list(&colors));
+        }
+
         let template_input = template_input.push(reset_button).spacing(4);
 
         let mut data = cosmic::widget::column::with_capacity(4)
@@ -324,5 +473,53 @@ impl cosmic::Application for SysInfo {
             .applet
             .popup_container(cosmic::widget::container(data))
             .into()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use cosmic::widget::text_editor::{Cursor, Position};
+
+    use super::*;
+
+    fn at(content: &mut Content, line: usize, column: usize) {
+        content.move_to(Cursor {
+            position: Position { line, column },
+            selection: None,
+        });
+    }
+
+    #[test]
+    fn new_content_has_cursor_at_end() {
+        let content = template_content("CPU {cpu_usage}\nRAM");
+        assert_eq!(content.cursor().position, Position { line: 1, column: 3 });
+        assert_eq!(chars_around_cursor(&content), (Some('M'), None));
+    }
+
+    #[test]
+    fn chars_around_cursor_handle_multibyte_text() {
+        // `↓` is 3 bytes long, and the column is a byte offset
+        let mut content = template_content("↓{dl_speed}");
+        at(&mut content, 0, '↓'.len_utf8());
+        assert_eq!(chars_around_cursor(&content), (Some('↓'), Some('{')));
+
+        at(&mut content, 0, 0);
+        assert_eq!(chars_around_cursor(&content), (None, Some('↓')));
+    }
+
+    #[test]
+    fn inserting_a_variable_at_the_cursor() {
+        let mut content = template_content("CPU RAM");
+        at(&mut content, 0, 3);
+        let (before, after) = chars_around_cursor(&content);
+        let text = Variable::CpuUsage.insertion(before, after);
+        content.perform(Action::Edit(Edit::Paste(Arc::new(text))));
+        assert_eq!(content.text(), "CPU {cpu_usage} RAM");
+
+        let mut content = template_content("CPU");
+        let (before, after) = chars_around_cursor(&content);
+        let text = Variable::CpuUsage.insertion(before, after);
+        content.perform(Action::Edit(Edit::Paste(Arc::new(text))));
+        assert_eq!(content.text(), "CPU {cpu_usage}");
     }
 }

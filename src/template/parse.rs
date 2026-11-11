@@ -70,34 +70,10 @@ impl FromStr for Variable {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "cpu_usage" => Ok(Self::CpuUsage),
-            "ram_usage" => Ok(Self::RamUsage),
-            "cpu_temp" => Ok(Self::CpuTemp),
-            "gpu_temp" => Ok(Self::GpuTemp),
-            "gpu_usage" => Ok(Self::GpuUsage),
-            "vram_usage" => Ok(Self::VramUsage),
-            "dl_speed" => Ok(Self::DlSpeed),
-            "ul_speed" => Ok(Self::UlSpeed),
-            "pub_ipv4" => Ok(Self::PublicIpv4),
-            "pub_ipv6" => Ok(Self::PublicIpv6),
-            "npu_usage" => Ok(Self::NpuUsage),
-            "npu_frequency" => Ok(Self::NpuFrequency),
-            "disk_read" => Ok(Self::DiskRead),
-            "disk_write" => Ok(Self::DiskWrite),
-            "disk_used" => Ok(Self::DiskUsed),
-            "disk_usage" => Ok(Self::DiskUsage),
-            "amd_gpu_temp" => Ok(Self::AmdGpuTemp),
-            "amd_gpu_usage" => Ok(Self::AmdGpuUsage),
-            "amd_vram_usage" => Ok(Self::AmdVramUsage),
-            "intel_gpu_temp" => Ok(Self::IntelGpuTemp),
-            "intel_gpu_usage" => Ok(Self::IntelGpuUsage),
-            "intel_vram_usage" => Ok(Self::IntelVramUsage),
-            "nvidia_gpu_temp" => Ok(Self::NvidiaGpuTemp),
-            "nvidia_gpu_usage" => Ok(Self::NvidiaGpuUsage),
-            "nvidia_vram_usage" => Ok(Self::NvidiaVramUsage),
-            _ => Err(()),
-        }
+        Variable::ALL
+            .into_iter()
+            .find(|var| var.name() == s)
+            .ok_or(())
     }
 }
 
