@@ -20,7 +20,7 @@
 - **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
-- **Public IPv4 / IPv6** — fetches your public IP addresses via `curl` (using [icanhazip.com](https://icanhazip.com)), cached for 5 minutes
+- **Public IPv4 / IPv6** — fetches your public IP addresses over HTTPS from [icanhazip.com](https://icanhazip.com), cached for 5 minutes
 - **Colour-coded values** — metrics change colour (normal → yellow → red) based on severity using COSMIC theme colours
 
 ## Display Template
@@ -53,12 +53,12 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{vram_usage}` | GPU memory (VRAM) usage % | `9%` |
 | `{npu_usage}` | NPU usage % |`43%` |
 | `{npu_frequency}` | NPU frequency MHz |`1600MHz` |
-| `{dl_speed}` | Download speed in MB/s (2 decimals) | `1.23` |
-| `{ul_speed}` | Upload speed in MB/s (2 decimals) | `0.45` |
+| `{dl_speed}` | Download speed in MB/s (1 decimal) | `1.2` |
+| `{ul_speed}` | Upload speed in MB/s (1 decimal) | `0.5` |
 | `{pub_ipv4}` | Public IPv4 address | `203.0.113.1` |
 | `{pub_ipv6}` | Public IPv6 address | `2001:db8::1` |
-| `{disk_read}` | Read activity of all disks in MB/s (2 decimals) | `34.5` |
-| `{disk_write}` | Write activity of all disks in MB/s (2 decimals) | `10.82` |
+| `{disk_read}` | Read activity of all disks in MB/s (1 decimal) | `34.5` |
+| `{disk_write}` | Write activity of all disks in MB/s (1 decimal) | `10.8` |
 | `{disk_used}` | Used space of all disks in GB | `195.2GB` |
 | `{disk_usage}` | Used space of all disks % | `65%` |
 
@@ -72,7 +72,7 @@ All metrics with separators:
 ```
 {gpu_temp} {gpu_usage} | {cpu_temp} {cpu_usage} | {ram_usage} | ↓{dl_speed} ↑{ul_speed} | {disk_read} {disk_write}
 ```
-→ `48°C 3% | 51°C 45% | 67% | ↓1.23 ↑0.45 | 34.5 10.82`
+→ `48°C 3% | 51°C 45% | 67% | ↓1.2 ↑0.5 | 34.5 10.8`
 
 Grouped by category:
 ```
@@ -84,7 +84,7 @@ Network focused:
 ```
 ↓{dl_speed}M/s ↑{ul_speed}M/s | CPU {cpu_usage}
 ```
-→ `↓1.23M/s ↑0.45M/s | CPU 45%`
+→ `↓1.2M/s ↑0.5M/s | CPU 45%`
 
 Minimal:
 ```
@@ -122,9 +122,9 @@ GPU temperature and usage are read using sysinfo components and sysfs for AMD/In
 
 ## Public IP
 
-Public IPv4 and IPv6 addresses are fetched using `curl` from [icanhazip.com](https://icanhazip.com) (Cloudflare). Results are cached for 5 minutes.
+Public IPv4 and IPv6 addresses are fetched over HTTPS from [icanhazip.com](https://icanhazip.com). Results are cached for 5 minutes.
 
-`curl` is required for this feature — IP variables will show `--` if it is not installed or the network is unavailable.
+IP variables show `--` if the service or network is unavailable.
 
 ## Network Interface Detection & Configuration
 

@@ -36,7 +36,7 @@ pub(crate) struct Disk {
 
     pub(crate) read: Option<f64>,
     pub(crate) write: Option<f64>,
-    pub(crate) used: Option<u64>,
+    pub(crate) used: Option<f64>,
     pub(crate) usage: Option<u64>,
 }
 
@@ -73,7 +73,7 @@ impl Disk {
 
         self.read = Some(read as f64 / 1_000_000.0);
         self.write = Some(write as f64 / 1_000_000.0);
-        self.used = Some(used / 1_000_000_000);
+        self.used = Some(used as f64 / 1_000_000_000.0);
         self.usage = Some(100 * used / total);
     }
 }
