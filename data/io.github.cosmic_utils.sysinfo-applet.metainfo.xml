@@ -46,32 +46,7 @@
       <caption xml:lang="uk">Вигляд налаштувань аплету</caption>
     </screenshot>
   </screenshots>
-  <releases>
-    <release version="0.4.0" date="2026-08-02">
-      <description>
-        <p>Add frosted glass support</p>
-      </description>
-    </release>
-    <release version="0.3.0" date="2026-03-23">
-      <description>
-        <p>Stabilise applet layout with zero-padded format strings</p>
-        <p xml:lang="pl">Stabilizacja wyglądu apletu wypełniaczem by się nie rozszerzało</p>
-      </description>
-    </release>
-    <release version="0.2.0" date="2026-03-20">
-      <description>
-        <p>Configurable display template with colour-coded severity and support for all system metrics</p>
-        <p xml:lang="pl">Konfigurowalne wyświetlanie z kolorami pokazującymi wagę sytuacji i wsparcie dla wszystkich metryk systemu</p>
-      </description>
-    </release>
-    <release version="0.1.0" date="2026-03-03">
-      <description>
-        <p>Initial release with real-time CPU, RAM, and network monitoring for the COSMIC panel</p>
-        <p xml:lang="pl">Pierwsze wydanie z CPU, RAMem i monitorowaniem sieci w czasie rzeczywistym dla panelu COSMIC</p>
-      </description>
-    </release>
-  </releases>
-  <provides>
+   <provides>
     <id>com.system76.CosmicApplet</id>
     <binaries>
       <binary>cosmic-ext-applet-sysinfo</binary>
