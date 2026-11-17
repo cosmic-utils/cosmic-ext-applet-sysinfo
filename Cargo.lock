@@ -1017,7 +1017,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-ext-applet-sysinfo"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "attohttpc",
  "backoff",
