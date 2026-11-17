@@ -123,33 +123,41 @@ impl cosmic::Application for SysInfo {
             }
             Message::ToggleWindow => {
                 if let Some(id) = self.popup.take() {
-                    return cosmic::iced::platform_specific::shell::commands::popup::destroy_popup(
-                        id,
-                    );
+                    return cosmic::task::message(cosmic::Action::Surface(
+                        cosmic::surface::action::destroy_popup(id),
+                    ));
                 }
 
                 let new_id = cosmic::iced::window::Id::unique();
                 self.popup.replace(new_id);
 
-                let mut popup_settings = self.core.applet.get_popup_settings(
-                    self.core
-                        .main_window_id()
-                        .expect("applet should always have a main window"),
-                    new_id,
-                    None,
-                    None,
-                    None,
-                );
-                popup_settings.positioner.anchor_rect = cosmic::iced::Rectangle::<i32> {
-                    x: 0,
-                    y: 0,
-                    width: self.size.width as i32,
-                    height: self.size.height as i32,
-                };
+                // Route the popup through libcosmic's surface helpers
+                return cosmic::task::message(cosmic::Action::Surface(
+                    cosmic::surface::action::app_popup::<Self>(
+                        |_| Default::default(),
+                        move |state| {
+                            let mut popup_settings = state.core.applet.get_popup_settings(
+                                state
+                                    .core
+                                    .main_window_id()
+                                    .expect("applet should always have a main window"),
+                                new_id,
+                                None,
+                                None,
+                                None,
+                            );
+                            popup_settings.positioner.anchor_rect = cosmic::iced::Rectangle::<i32> {
+                                x: 0,
+                                y: 0,
+                                width: state.size.width as i32,
+                                height: state.size.height as i32,
+                            };
 
-                return cosmic::iced::platform_specific::shell::commands::popup::get_popup(
-                    popup_settings,
-                );
+                            popup_settings
+                        },
+                        None,
+                    ),
+                ));
             }
             Message::PopupClosed(id) => {
                 self.popup.take_if(|stored_id| stored_id == &id);
