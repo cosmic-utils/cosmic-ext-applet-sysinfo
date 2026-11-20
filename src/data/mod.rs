@@ -388,6 +388,12 @@ impl Gpu {
                 .filter_map(|(path, idle_ms)| {
                     let previous = self.last_idle_ms.get(path)?;
                     let idle_delta = idle_ms.saturating_sub(*previous);
+                    // i915 freezes `rc6_residency_ms` while a GT is power-gated
+                    // (e.g. the Meteor Lake media GT), which would read as 100%
+                    // busy; skip such samples.
+                    if idle_delta == 0 && path.ends_with("rc6_residency_ms") {
+                        return None;
+                    }
                     Some(100 - (idle_delta * 100 / wall_ms).min(100))
                 })
                 .max()
@@ -400,7 +406,8 @@ impl Gpu {
     }
 
     /// Collect `idle_residency_ms` for every GT of every `xe` card
-    /// (`/sys/class/drm/card*/device/tile*/gt*/gtidle`).
+    /// (`/sys/class/drm/card*/device/tile*/gt*/gtidle`), plus `rc6_residency_ms`
+    /// for every GT of every `i915` card (`/sys/class/drm/card*/gt/gt*`).
     fn read_idle_residency_ms() -> HashMap<PathBuf, u64> {
         let mut samples = HashMap::new();
         let Ok(cards) = fs::read_dir("/sys/class/drm") else {
@@ -424,6 +431,16 @@ impl Gpu {
                     {
                         samples.insert(path, value);
                     }
+                }
+            }
+
+            // i915: `/sys/class/drm/card*/gt/gt*/rc6_residency_ms`
+            for gt in subdirs(card.path().join("gt"), "gt") {
+                let path = gt.path().join("rc6_residency_ms");
+                if let Ok(contents) = fs::read_to_string(&path)
+                    && let Ok(value) = contents.trim().parse()
+                {
+                    samples.insert(path, value);
                 }
             }
         }
