@@ -10,18 +10,19 @@
 
 ## Features
 
-- **CPU usage** — percentage of total CPU utilization
-- **RAM usage** — percentage of memory used (optionally including swap)
-- **Disk usage** — read and write activity of all disks in MB/s
-- **Network speed** — download and upload speeds in MB/s
-- **CPU temperature** — reads from common thermal sensors via sysinfo
-- **GPU temperature** — reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
-- **GPU usage** — reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
-- **VRAM usage** — reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
-- **NPU usage** — reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
-- **NPU frequency** — reads from sysfs (`npu_current_frequency_mhz`).
-- **Public IPv4 / IPv6** — fetches your public IP addresses over HTTPS from [icanhazip.com](https://icanhazip.com), cached for 5 minutes
-- **Colour-coded values** — metrics change colour (normal → yellow → red) based on severity using COSMIC theme colours
+- **CPU usage** - percentage of total CPU utilization
+- **CPU frequency** - average current CPU frequency across cores, in GHz
+- **RAM usage** - percentage of memory used (optionally including swap)
+- **Disk usage** - read and write activity of all disks in MB/s
+- **Network speed** - download and upload speeds in MB/s
+- **CPU temperature** - reads from common thermal sensors via sysinfo
+- **GPU temperature** - reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
+- **GPU usage** - reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
+- **VRAM usage** - reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
+- **NPU usage** - reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
+- **NPU frequency** - reads from sysfs (`npu_current_frequency_mhz`).
+- **Public IPv4 / IPv6** - fetches your public IP addresses over HTTPS from [icanhazip.com](https://icanhazip.com), cached for 5 minutes
+- **Colour-coded values** - metrics change colour (normal → yellow → red) based on severity using COSMIC theme colours
 
 ## Display Template
 
@@ -46,6 +47,7 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | Variable | Description | Example output |
 |---|---|---|
 | `{cpu_usage}` | CPU usage % (0 decimals) | `45%` |
+| `{cpu_frequency}` | Average CPU frequency in GHz (1 decimal) | `3.4GHz` |
 | `{ram_usage}` | RAM usage % | `67%` |
 | `{cpu_temp}` | CPU temperature in °C | `51°C` |
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
@@ -104,12 +106,12 @@ Values are automatically colour-coded using COSMIC theme colours:
 
 | Metric | Normal | Yellow | Red |
 |---|---|---|---|
-| CPU usage | < 50% | 50–80% | ≥ 80% |
-| RAM usage | < 50% | 50–80% | ≥ 80% |
-| CPU temp | < 60°C | 60–80°C | ≥ 80°C |
-| GPU temp | < 60°C | 60–85°C | ≥ 85°C |
-| GPU usage | < 50% | 50–80% | ≥ 80% |
-| VRAM usage | < 50% | 50–80% | ≥ 80% |
+| CPU usage | < 50% | 50-80% | ≥ 80% |
+| RAM usage | < 50% | 50-80% | ≥ 80% |
+| CPU temp | < 60°C | 60-80°C | ≥ 80°C |
+| GPU temp | < 60°C | 60-85°C | ≥ 85°C |
+| GPU usage | < 50% | 50-80% | ≥ 80% |
+| VRAM usage | < 50% | 50-80% | ≥ 80% |
 | Disk usage | < 75% | 75-90% | ≥ 90% |
 
 Download/upload speeds and public IPs are not colour-coded.
@@ -118,7 +120,7 @@ Download/upload speeds and public IPs are not colour-coded.
 
 GPU temperature and usage are read using sysinfo components and sysfs for AMD/Intel GPUs. For NVIDIA GPUs, the applet falls back to `nvidia-smi` when sysinfo/sysfs data is unavailable.
 
-`nvidia-smi` is an optional dependency — GPU metrics will simply show `--` if it is not installed and sysfs data is unavailable.
+`nvidia-smi` is an optional dependency - GPU metrics will simply show `--` if it is not installed and sysfs data is unavailable.
 
 ## Public IP
 

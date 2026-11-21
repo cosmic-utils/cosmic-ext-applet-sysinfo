@@ -479,15 +479,16 @@ pub(crate) struct Data {
     next_ip_fetch: Instant,
     ip_backoff: ExponentialBackoff,
 
-    pub(crate) npu: Npu,
-    pub(crate) gpu: Gpu,
     pub(crate) cpu_usage: Option<f32>,
+    pub(crate) cpu_frequency: Option<f64>,
+    pub(crate) cpu_temp: Option<f32>,
     pub(crate) ram_usage: Option<u64>,
     pub(crate) download_speed: Option<f64>,
     pub(crate) upload_speed: Option<f64>,
-    pub(crate) cpu_temp: Option<f32>,
     pub(crate) public_ipv4: Option<String>,
     pub(crate) public_ipv6: Option<String>,
+    pub(crate) gpu: Gpu,
+    pub(crate) npu: Npu,
     pub(crate) disks: Disk,
 }
 
@@ -517,14 +518,15 @@ impl Data {
             next_ip_fetch: Instant::now(), // triggers an immediate fetch on the first tick
             ip_backoff,
             cpu_usage: None,
+            cpu_frequency: None,
+            cpu_temp: None,
             ram_usage: None,
             download_speed: None,
             upload_speed: None,
-            cpu_temp: None,
-            npu: npu_data,
-            gpu: Gpu::new(),
             public_ipv4: None,
             public_ipv6: None,
+            gpu: Gpu::new(),
+            npu: npu_data,
             disks: disks_data,
         }
     }
@@ -532,6 +534,7 @@ impl Data {
     /// Refresh only the subsystems the current template actually uses.
     pub(crate) fn refresh(&mut self, requires: Requires, config: &SysInfoConfig) {
         let needs_cpu = requires.contains(Variable::CpuUsage);
+        let needs_cpu_frequency = requires.contains(Variable::CpuFrequency);
         let needs_cpu_temp = requires.contains(Variable::CpuTemp);
         let needs_ram = requires.contains(Variable::RamUsage);
         let needs_download = requires.contains(Variable::DlSpeed);
@@ -556,8 +559,15 @@ impl Data {
         // Crate sysinfo system refresh
         let mut refresh = RefreshKind::nothing();
 
-        if needs_cpu {
-            refresh = refresh.with_cpu(CpuRefreshKind::nothing().with_usage());
+        if needs_cpu || needs_cpu_frequency {
+            let mut cpu = CpuRefreshKind::nothing();
+            if needs_cpu {
+                cpu = cpu.with_usage();
+            }
+            if needs_cpu_frequency {
+                cpu = cpu.with_frequency();
+            }
+            refresh = refresh.with_cpu(cpu);
         }
         if needs_ram {
             let mem = if config.include_swap_in_ram {
@@ -572,6 +582,14 @@ impl Data {
 
         // CPU
         self.cpu_usage = needs_cpu.then(|| self.system.global_cpu_usage());
+        self.cpu_frequency = if needs_cpu_frequency {
+            let cpus = self.system.cpus();
+            (!cpus.is_empty()).then(|| {
+                cpus.iter().map(|c| c.frequency() as f64).sum::<f64>() / cpus.len() as f64 / 1000.0
+            })
+        } else {
+            None
+        };
 
         // RAM
         self.ram_usage = needs_ram.then(|| {
