@@ -166,7 +166,7 @@ struct NvidiaSmi {
 }
 
 pub(crate) struct Gpu {
-    // Sampling state for `refresh_xe_usage`
+    // Sampling state for `refresh_intel_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
 
@@ -208,7 +208,7 @@ impl Gpu {
         };
         self.usage = if needs_usage {
             Self::find_usage_sysfs()
-                .or_else(|| self.refresh_xe_usage())
+                .or_else(|| self.refresh_intel_usage())
                 .or_else(|| nvidia.as_ref().and_then(|n| n.usage))
         } else {
             None
@@ -372,9 +372,9 @@ impl Gpu {
         (total > 0).then(|| used * 100 / total)
     }
 
-    /// Usage of the busiest GT for the Intel `xe` driver, derived from C6
-    /// idle residency: busy ≈ 100 - idle_time_delta / wall_time_delta.
-    fn refresh_xe_usage(&mut self) -> Option<u64> {
+    /// Usage of the busiest GT for the Intel `xe` and `i915` drivers, derived
+    /// from C6/RC6 idle residency: busy ≈ 100 - idle_time_delta / wall_time_delta.
+    fn refresh_intel_usage(&mut self) -> Option<u64> {
         let now = Instant::now();
         let samples = Self::read_idle_residency_ms();
 
@@ -388,10 +388,15 @@ impl Gpu {
                 .filter_map(|(path, idle_ms)| {
                     let previous = self.last_idle_ms.get(path)?;
                     let idle_delta = idle_ms.saturating_sub(*previous);
-                    // i915 freezes `rc6_residency_ms` while a GT is power-gated
-                    // (e.g. the Meteor Lake media GT), which would read as 100%
-                    // busy; skip such samples.
-                    if idle_delta == 0 && path.ends_with("rc6_residency_ms") {
+                    // i915 freezes `rc6_residency_ms` both while a GT is
+                    // power-gated (e.g. the Meteor Lake media GT) and while it
+                    // is fully busy; skip only the former, whose clock is
+                    // stopped (`rps_act_freq_mhz` reads 0 or is unreadable).
+                    if idle_delta == 0
+                        && path.ends_with("rc6_residency_ms")
+                        && fs::read_to_string(path.with_file_name("rps_act_freq_mhz"))
+                            .map_or(true, |mhz| mhz.trim() == "0")
+                    {
                         return None;
                     }
                     Some(100 - (idle_delta * 100 / wall_ms).min(100))
