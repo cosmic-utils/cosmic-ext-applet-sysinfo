@@ -72,6 +72,7 @@ impl FromStr for Variable {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "cpu_usage" => Ok(Self::CpuUsage),
+            "cpu_frequency" => Ok(Self::CpuFrequency),
             "ram_usage" => Ok(Self::RamUsage),
             "cpu_temp" => Ok(Self::CpuTemp),
             "gpu_temp" => Ok(Self::GpuTemp),
@@ -146,5 +147,11 @@ mod test {
                 parse("CPU {cpu_usage} | {pub_ipv4}")
             );
         });
+    }
+
+    #[test]
+    fn parse_cpu_frequency() {
+        let template = Template::from_str("{cpu_frequency}").unwrap();
+        assert!(template.requires.contains(Variable::CpuFrequency));
     }
 }

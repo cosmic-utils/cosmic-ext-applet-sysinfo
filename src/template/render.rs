@@ -63,6 +63,10 @@ impl Template {
                 ),
                 None => ("--%".into(), None),
             },
+            Variable::CpuFrequency => match data.cpu_frequency {
+                Some(f) => (format!("{f:>4.1}GHz").into(), None),
+                None => ("--GHz".into(), None),
+            },
             Variable::CpuTemp => match data.cpu_temp {
                 Some(t) => (
                     format!("{t:>2.0}°C").into(),
