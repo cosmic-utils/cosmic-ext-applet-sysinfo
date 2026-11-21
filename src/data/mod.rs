@@ -169,6 +169,7 @@ pub(crate) struct Gpu {
     // Sampling state for `refresh_intel_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
+    advanced_idle: HashSet<PathBuf>,
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
@@ -180,6 +181,7 @@ impl Gpu {
         Self {
             last_sample_at: None,
             last_idle_ms: HashMap::new(),
+            advanced_idle: HashSet::new(),
             temp: None,
             usage: None,
             vram_usage: None,
@@ -378,6 +380,16 @@ impl Gpu {
         let now = Instant::now();
         let samples = Self::read_idle_residency_ms();
 
+        for (path, idle_ms) in &samples {
+            if self
+                .last_idle_ms
+                .get(path)
+                .is_some_and(|prev| idle_ms > prev)
+            {
+                self.advanced_idle.insert(path.clone());
+            }
+        }
+
         let usage = self.last_sample_at.and_then(|last| {
             let wall_ms = u64::try_from(now.duration_since(last).as_millis()).ok()?;
             if wall_ms == 0 {
@@ -388,14 +400,13 @@ impl Gpu {
                 .filter_map(|(path, idle_ms)| {
                     let previous = self.last_idle_ms.get(path)?;
                     let idle_delta = idle_ms.saturating_sub(*previous);
-                    // i915 freezes `rc6_residency_ms` both while a GT is
-                    // power-gated (e.g. the Meteor Lake media GT) and while it
-                    // is fully busy; skip only the former, whose clock is
-                    // stopped (`rps_act_freq_mhz` reads 0 or is unreadable).
+                    // i915 freezes `rc6_residency_ms` while a GT is fully busy,
+                    // but some counters never advance at all (e.g. the Meteor
+                    // Lake media GT, or RC6 disabled); skip a frozen counter
+                    // unless it has advanced before.
                     if idle_delta == 0
                         && path.ends_with("rc6_residency_ms")
-                        && fs::read_to_string(path.with_file_name("rps_act_freq_mhz"))
-                            .map_or(true, |mhz| mhz.trim() == "0")
+                        && !self.advanced_idle.contains(path)
                     {
                         return None;
                     }
