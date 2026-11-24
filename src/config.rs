@@ -21,7 +21,7 @@ pub(crate) struct SysInfoConfig {
     /// When false, the system default font is used for all spans.
     pub(crate) use_mono_font: bool,
     /// Template string controlling the applet display.
-    /// Available variables: {cpu_usage}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
+    /// Available variables: {cpu_usage}, {cpu_frequency}, {ram_usage}, {cpu_temp}, {gpu_temp}, {gpu_usage},
     /// {vram_usage}, {npu_usage}, {npu_frequency}, {dl_speed}, {ul_speed}, {pub_ipv4},
     /// {pub_ipv6}, {disk_read}, {disk_write}, {disk_used}, {disk_usage}
     pub(crate) template: String,
