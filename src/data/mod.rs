@@ -169,7 +169,6 @@ pub(crate) struct Gpu {
     // Sampling state for `refresh_intel_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
-    advanced_idle: HashSet<PathBuf>,
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
@@ -181,7 +180,6 @@ impl Gpu {
         Self {
             last_sample_at: None,
             last_idle_ms: HashMap::new(),
-            advanced_idle: HashSet::new(),
             temp: None,
             usage: None,
             vram_usage: None,
@@ -380,16 +378,6 @@ impl Gpu {
         let now = Instant::now();
         let samples = Self::read_idle_residency_ms();
 
-        for (path, idle_ms) in &samples {
-            if self
-                .last_idle_ms
-                .get(path)
-                .is_some_and(|prev| idle_ms > prev)
-            {
-                self.advanced_idle.insert(path.clone());
-            }
-        }
-
         let usage = self.last_sample_at.and_then(|last| {
             let wall_ms = u64::try_from(now.duration_since(last).as_millis()).ok()?;
             if wall_ms == 0 {
@@ -401,12 +389,13 @@ impl Gpu {
                     let previous = self.last_idle_ms.get(path)?;
                     let idle_delta = idle_ms.saturating_sub(*previous);
                     // i915 freezes `rc6_residency_ms` while a GT is fully busy,
-                    // but some counters never advance at all (e.g. the Meteor
-                    // Lake media GT, or RC6 disabled); skip a frozen counter
-                    // unless it has advanced before.
+                    // but the Meteor Lake media GT (`gt1`) never advances it at
+                    // all, and it stays 0 if RC6 is disabled. Treat a frozen
+                    // counter as busy only on the primary GT (`gt0`), and only
+                    // if RC6 has ever run.
                     if idle_delta == 0
                         && path.ends_with("rc6_residency_ms")
-                        && !self.advanced_idle.contains(path)
+                        && (*idle_ms == 0 || !path.ends_with("gt0/rc6_residency_ms"))
                     {
                         return None;
                     }
