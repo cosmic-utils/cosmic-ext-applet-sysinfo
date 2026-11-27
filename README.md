@@ -17,7 +17,7 @@
 - **Network speed** - download and upload speeds in MB/s
 - **CPU temperature** - reads from common thermal sensors via sysinfo
 - **GPU temperature** - reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
-- **GPU usage** - reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
+- **GPU usage** - reads from sysfs (`gpu_busy_percent` for AMD), then `nvidia-smi` for NVIDIA, then GT idle/RC6 residency for Intel xe/i915 (so on Intel + NVIDIA hybrid laptops it reports the NVIDIA GPU, like the temperature)
 - **VRAM usage** - reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** - reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** - reads from sysfs (`npu_current_frequency_mhz`).
