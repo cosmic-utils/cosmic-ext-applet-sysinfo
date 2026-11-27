@@ -7,7 +7,7 @@ use sysinfo::Components;
 use sysinfo_mock::{Component, Components};
 
 use std::{
-    cell::LazyCell,
+    cell::{Cell, LazyCell},
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
@@ -25,6 +25,9 @@ use crate::{
 };
 
 const IP_REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+/// How long to wait before calling `nvidia-smi` again after it failed (e.g.
+/// on systems without an NVIDIA GPU), so it isn't spawned on every refresh.
+const NVIDIA_SMI_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 
 enum IpVersion {
     V4,
@@ -169,6 +172,8 @@ pub(crate) struct Gpu {
     // Sampling state for `refresh_intel_usage`
     last_sample_at: Option<Instant>,
     last_idle_ms: HashMap<PathBuf, u64>,
+    // Earliest time to call `nvidia-smi` again after a failed call
+    nvidia_smi_retry_at: Option<Instant>,
 
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
@@ -180,6 +185,7 @@ impl Gpu {
         Self {
             last_sample_at: None,
             last_idle_ms: HashMap::new(),
+            nvidia_smi_retry_at: None,
             temp: None,
             usage: None,
             vram_usage: None,
@@ -198,18 +204,40 @@ impl Gpu {
             return;
         }
 
-        // Lazy nvidia-smi: spawned at most once
-        let nvidia = LazyCell::new(Self::query_nvidia_smi);
+        // Lazy nvidia-smi: spawned at most once, and not again for a while
+        // after it failed
+        let now = Instant::now();
+        let nvidia_allowed = self.nvidia_smi_retry_at.is_none_or(|at| now >= at);
+        let nvidia_queried = Cell::new(false);
+        let nvidia = LazyCell::new(|| {
+            if !nvidia_allowed {
+                return None;
+            }
+            nvidia_queried.set(true);
+            Self::query_nvidia_smi()
+        });
 
         self.temp = if needs_temp {
             Self::find_temp(components).or_else(|| nvidia.as_ref().and_then(|n| n.temp))
         } else {
             None
         };
+        // Order: amdgpu sysfs, then nvidia-smi, then Intel idle residency.
+        // On Intel iGPU + NVIDIA dGPU laptops the temperature comes from
+        // nvidia-smi (i915 has no GPU temperature sensor), so the usage must
+        // too, otherwise `{gpu_usage}` describes a different GPU than
+        // `{gpu_temp}`.
         self.usage = if needs_usage {
-            Self::find_usage_sysfs()
-                .or_else(|| self.refresh_intel_usage())
-                .or_else(|| nvidia.as_ref().and_then(|n| n.usage))
+            match Self::find_usage_sysfs().or_else(|| nvidia.as_ref().and_then(|n| n.usage)) {
+                Some(usage) => {
+                    // Drop the Intel baseline so a later fallback doesn't
+                    // average over the interval it wasn't sampled
+                    self.last_sample_at = None;
+                    self.last_idle_ms.clear();
+                    Some(usage)
+                }
+                None => self.refresh_intel_usage(),
+            }
         } else {
             None
         };
@@ -220,6 +248,10 @@ impl Gpu {
         } else {
             None
         };
+
+        if nvidia_queried.get() {
+            self.nvidia_smi_retry_at = nvidia.is_none().then(|| now + NVIDIA_SMI_RETRY_INTERVAL);
+        }
     }
 
     fn find_temp(components: &Components) -> Option<f32> {
