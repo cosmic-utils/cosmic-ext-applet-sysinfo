@@ -16,8 +16,10 @@
 - **Disk usage** - read and write activity of all disks in MB/s
 - **Network speed** - download and upload speeds in MB/s
 - **CPU temperature** - reads from common thermal sensors via sysinfo
+- **CPU power** - package power from the powercap/RAPL energy counters (Intel and AMD; needs read access, see below)
 - **GPU temperature** - reads from sysinfo components (AMD/Intel), falls back to `nvidia-smi` for NVIDIA
 - **GPU usage** - reads from sysfs (`gpu_busy_percent` for AMD, GT idle residency for Intel xe), falls back to `nvidia-smi` for NVIDIA
+- **GPU power** - reads the amdgpu hwmon (`power1_average`/`power1_input`), falls back to `nvidia-smi` for NVIDIA
 - **VRAM usage** - reads from sysfs (`mem_info_vram_*` for AMD) or the DRM memory regions query for Intel xe, falls back to `nvidia-smi` for NVIDIA
 - **NPU usage** - reads from sysfs (`npu_busy_time_us`) and calculates the NPU utilization.
 - **NPU frequency** - reads from sysfs (`npu_current_frequency_mhz`).
@@ -48,10 +50,12 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 |---|---|---|
 | `{cpu_usage}` | CPU usage % (0 decimals) | `45%` |
 | `{cpu_frequency}` | Average CPU frequency in GHz (1 decimal) | `3.4GHz` |
+| `{cpu_power}` | CPU package power in W, from the RAPL energy counter (see below) | `18W` |
 | `{ram_usage}` | RAM usage % | `67%` |
 | `{cpu_temp}` | CPU temperature in °C | `51°C` |
 | `{gpu_temp}` | GPU temperature in °C | `48°C` |
 | `{gpu_usage}` | GPU usage % | `3%` |
+| `{gpu_power}` | GPU power draw in W (amdgpu hwmon, or `nvidia-smi`; on AMD APUs the hwmon reports SoC power, which includes the CPU) | `35W` |
 | `{vram_usage}` | GPU memory (VRAM) usage % | `9%` |
 | `{npu_usage}` | NPU usage % |`43%` |
 | `{npu_frequency}` | NPU frequency MHz |`1600MHz` |
@@ -65,6 +69,21 @@ CPU {cpu_usage} RAM {ram_usage} ↓{dl_speed}M/s ↑{ul_speed}M/s
 | `{disk_usage}` | Used space of all disks % | `65%` |
 
 When a sensor is not available, it shows `--` (e.g. `--°C`, `--%`).
+
+`{cpu_power}` reads `/sys/class/powercap/intel-rapl:*/energy_uj` (the package zones;
+AMD CPUs use the same interface). Since Linux 5.10 that file is readable by root only
+(CVE-2020-8694), so the value shows `--W` until it is made readable, e.g. with a udev rule:
+
+```
+# /etc/udev/rules.d/90-rapl-energy-readable.rules
+SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", ATTR{name}=="package-*", RUN+="/bin/chmod 0444 /sys%p/energy_uj"
+```
+
+It only matches the package zones (not sub-zones or `psys`). To apply it without rebooting:
+`sudo udevadm control --reload && sudo udevadm trigger --action=change --subsystem-match=powercap`.
+
+This lets any local user read the energy counter, which is the power side channel the
+kernel change closed. Weigh that before enabling it on a shared machine.
 
 Use `{{` and `}}` for literal braces in your template.
 

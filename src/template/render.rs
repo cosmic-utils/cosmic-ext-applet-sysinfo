@@ -67,6 +67,10 @@ impl Template {
                 Some(f) => (format!("{f:>4.1}GHz").into(), None),
                 None => ("--GHz".into(), None),
             },
+            Variable::CpuPower => match data.cpu_power.watts {
+                Some(w) => (format!("{w:>2.0}W").into(), None),
+                None => ("--W".into(), None),
+            },
             Variable::CpuTemp => match data.cpu_temp {
                 Some(t) => (
                     format!("{t:>2.0}°C").into(),
@@ -87,6 +91,10 @@ impl Template {
                     colors.threshold(v as f64, 50.0, 80.0),
                 ),
                 None => ("--%".into(), None),
+            },
+            Variable::GpuPower => match data.gpu.power {
+                Some(w) => (format!("{w:>2.0}W").into(), None),
+                None => ("--W".into(), None),
             },
             Variable::VramUsage => match data.gpu.vram_usage {
                 Some(v) => (

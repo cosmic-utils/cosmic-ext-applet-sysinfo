@@ -144,6 +144,102 @@ impl Npu {
     }
 }
 
+/// CPU package power, derived from the powercap (RAPL) energy counters:
+/// watts = energy_delta / wall_time_delta, summed over all package zones.
+#[derive(Default)]
+pub(crate) struct CpuPower {
+    last_sample_at: Option<Instant>,
+    last_energy_uj: HashMap<PathBuf, u64>,
+
+    pub(crate) watts: Option<f64>,
+}
+
+impl CpuPower {
+    fn refresh(&mut self) {
+        let now = Instant::now();
+        let samples = Self::read_package_energy_uj();
+
+        self.watts = self.last_sample_at.and_then(|last| {
+            let seconds = now.duration_since(last).as_secs_f64();
+            // Only publish a total over the same set of packages as last time,
+            // otherwise a package that became unreadable would silently
+            // under-report (a new one just needs a baseline sample first).
+            if seconds <= 0.0 || samples.is_empty() || samples.len() != self.last_energy_uj.len() {
+                return None;
+            }
+            let mut total_uj = 0u64;
+            for (path, (energy, max_range)) in &samples {
+                let previous = self.last_energy_uj.get(path)?;
+                total_uj += energy_delta_uj(*previous, *energy, *max_range)?;
+            }
+            Some(total_uj as f64 / 1_000_000.0 / seconds)
+        });
+
+        self.last_sample_at = Some(now);
+        self.last_energy_uj = samples.into_iter().map(|(p, (e, _))| (p, e)).collect();
+    }
+
+    fn reset(&mut self) {
+        self.last_sample_at = None;
+        self.last_energy_uj.clear();
+        self.watts = None;
+    }
+
+    /// `energy_uj` and `max_energy_range_uj` of every package zone
+    /// (`/sys/class/powercap/intel-rapl:N` named `package-*`; AMD CPUs use
+    /// the same interface). Sub-zones (`intel-rapl:N:M`), the platform zone
+    /// (`psys`) and the duplicate MMIO zones are skipped. All or nothing: if
+    /// any package can't be read (`energy_uj` is root-only by default since
+    /// Linux 5.10), this is empty rather than a partial total.
+    fn read_package_energy_uj() -> HashMap<PathBuf, (u64, u64)> {
+        let read = |path: PathBuf| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|c| c.trim().parse::<u64>().ok())
+        };
+
+        fs::read_dir("/sys/class/powercap")
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .and_then(|n| n.strip_prefix("intel-rapl:"))
+                    .is_some_and(|rest| !rest.contains(':'))
+            })
+            .filter(|e| {
+                fs::read_to_string(e.path().join("name"))
+                    .is_ok_and(|n| n.trim().starts_with("package-"))
+            })
+            .map(|e| {
+                let zone = e.path();
+                let energy = read(zone.join("energy_uj"))?;
+                let max_range = read(zone.join("max_energy_range_uj")).unwrap_or(0);
+                Some((zone.join("energy_uj"), (energy, max_range)))
+            })
+            .collect::<Option<HashMap<_, _>>>()
+            .unwrap_or_default()
+    }
+}
+
+/// Energy consumed between two readings of a counter that wraps at `max_range`.
+///
+/// Assumes at most one wraparound between readings (the counters take minutes
+/// to hours to wrap). Returns `None` when a decrease can't be explained by a
+/// wrap (unknown range, or a previous reading beyond it). A counter reset that
+/// stays within the range is indistinguishable from a wrap and yields one
+/// inflated sample.
+fn energy_delta_uj(previous: u64, current: u64, max_range: u64) -> Option<u64> {
+    if current >= previous {
+        Some(current - previous)
+    } else if max_range > 0 && previous <= max_range {
+        Some(max_range - previous + current)
+    } else {
+        None
+    }
+}
+
 #[derive(Default)]
 struct Vram {
     used: Option<u64>,
@@ -163,6 +259,7 @@ struct NvidiaSmi {
     temp: Option<f32>,
     usage: Option<u64>,
     vram: Vram,
+    power: Option<f64>,
 }
 
 pub(crate) struct Gpu {
@@ -173,6 +270,7 @@ pub(crate) struct Gpu {
     pub(crate) temp: Option<f32>,
     pub(crate) usage: Option<u64>,
     pub(crate) vram_usage: Option<u64>,
+    pub(crate) power: Option<f64>,
 }
 
 impl Gpu {
@@ -183,6 +281,7 @@ impl Gpu {
             temp: None,
             usage: None,
             vram_usage: None,
+            power: None,
         }
     }
 
@@ -190,11 +289,13 @@ impl Gpu {
         let needs_temp = requires.contains(Variable::GpuTemp);
         let needs_usage = requires.contains(Variable::GpuUsage);
         let needs_vram = requires.contains(Variable::VramUsage);
+        let needs_power = requires.contains(Variable::GpuPower);
 
-        if !needs_temp && !needs_usage && !needs_vram {
+        if !needs_temp && !needs_usage && !needs_vram && !needs_power {
             self.temp = None;
             self.usage = None;
             self.vram_usage = None;
+            self.power = None;
             return;
         }
 
@@ -220,6 +321,37 @@ impl Gpu {
         } else {
             None
         };
+        self.power = if needs_power {
+            Self::find_power_sysfs().or_else(|| nvidia.as_ref().and_then(|n| n.power))
+        } else {
+            None
+        };
+    }
+
+    /// GPU power draw in watts from the amdgpu hwmon of a DRM device
+    /// (`power1_average` or `power1_input`, in microwatts; SoC power on APUs).
+    fn find_power_sysfs() -> Option<f64> {
+        let cards = fs::read_dir("/sys/class/drm").ok()?;
+        for card in cards.flatten() {
+            let Ok(hwmons) = fs::read_dir(card.path().join("device/hwmon")) else {
+                continue;
+            };
+            for hwmon in hwmons.flatten() {
+                if !fs::read_to_string(hwmon.path().join("name"))
+                    .is_ok_and(|n| n.trim() == "amdgpu")
+                {
+                    continue;
+                }
+                for name in ["power1_average", "power1_input"] {
+                    if let Ok(contents) = fs::read_to_string(hwmon.path().join(name))
+                        && let Ok(microwatts) = contents.trim().parse::<u64>()
+                    {
+                        return Some(microwatts as f64 / 1_000_000.0);
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn find_temp(components: &Components) -> Option<f32> {
@@ -466,7 +598,7 @@ impl Gpu {
 
         let output = command
             .args([
-                "--query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total",
+                "--query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw",
                 "--format=csv,noheader,nounits",
             ])
             .output()
@@ -475,8 +607,9 @@ impl Gpu {
         if !output.status.success() {
             return None;
         }
+        // One line per GPU; report the first one
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut fields = stdout.trim().split(", ");
+        let mut fields = stdout.lines().next()?.split(',');
 
         Some(NvidiaSmi {
             temp: fields.next().and_then(|s| s.trim().parse().ok()),
@@ -485,6 +618,7 @@ impl Gpu {
                 used: fields.next().and_then(|s| s.trim().parse().ok()),
                 total: fields.next().and_then(|s| s.trim().parse().ok()),
             },
+            power: fields.next().and_then(|s| s.trim().parse().ok()),
         })
     }
 }
@@ -504,6 +638,7 @@ pub(crate) struct Data {
     pub(crate) cpu_usage: Option<f32>,
     pub(crate) cpu_frequency: Option<f64>,
     pub(crate) cpu_temp: Option<f32>,
+    pub(crate) cpu_power: CpuPower,
     pub(crate) ram_usage: Option<u64>,
     pub(crate) download_speed: Option<f64>,
     pub(crate) upload_speed: Option<f64>,
@@ -542,6 +677,7 @@ impl Data {
             cpu_usage: None,
             cpu_frequency: None,
             cpu_temp: None,
+            cpu_power: CpuPower::default(),
             ram_usage: None,
             download_speed: None,
             upload_speed: None,
@@ -558,6 +694,7 @@ impl Data {
         let needs_cpu = requires.contains(Variable::CpuUsage);
         let needs_cpu_frequency = requires.contains(Variable::CpuFrequency);
         let needs_cpu_temp = requires.contains(Variable::CpuTemp);
+        let needs_cpu_power = requires.contains(Variable::CpuPower);
         let needs_ram = requires.contains(Variable::RamUsage);
         let needs_download = requires.contains(Variable::DlSpeed);
         let needs_upload = requires.contains(Variable::UlSpeed);
@@ -612,6 +749,12 @@ impl Data {
         } else {
             None
         };
+
+        if needs_cpu_power {
+            self.cpu_power.refresh();
+        } else {
+            self.cpu_power.reset();
+        }
 
         // RAM
         self.ram_usage = needs_ram.then(|| {
@@ -868,6 +1011,32 @@ mod test {
             // choose `coretemp` over `k10temp` despite `k10temp` coming earlier
             // in `components`, because `coretemp` comes earlier in `LABELS`
             assert_eq!(Data::find_cpu_temp(&components), Some(2.0));
+        }
+    }
+
+    mod energy_delta {
+        use super::*;
+
+        #[test]
+        fn increasing() {
+            assert_eq!(energy_delta_uj(1_000, 4_000, 10_000), Some(3_000));
+        }
+
+        #[test]
+        fn wraps_around() {
+            // 9_000 -> wrap at 10_000 -> 500: 1_000 + 500
+            assert_eq!(energy_delta_uj(9_000, 500, 10_000), Some(1_500));
+        }
+
+        #[test]
+        fn unknown_range_is_no_sample() {
+            assert_eq!(energy_delta_uj(9_000, 500, 0), None);
+        }
+
+        #[test]
+        fn reading_beyond_range_is_no_sample() {
+            // a previous value above the wrap point can't be a wrap (reset)
+            assert_eq!(energy_delta_uj(20_000, 500, 10_000), None);
         }
     }
 
